@@ -27,7 +27,7 @@ const account: Account = {
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
   isHftMode: false,
-  template: { name: "Demo Account", startingBalance: STARTING_BALANCE, instrumentType: "CRYPTO" },
+  template: { name: "Demo Account", startingBalance: STARTING_BALANCE, instrumentType: "FOREX" },
 };
 
 const positions: Position[] = [];

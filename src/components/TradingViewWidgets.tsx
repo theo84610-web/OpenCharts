@@ -59,6 +59,7 @@ const TV_SYMBOL_MAP: Record<string, string> = {
   CADCHF: "FX:CADCHF",
   NZDCHF: "FX:NZDCHF",
   XAUUSD: "TVC:GOLD",
+  XAU_USD: "OANDA:XAUUSD",
   XAGUSD: "TVC:SILVER",
   US30: "TVC:DJI",
   SPX500: "FOREXCOM:SPXUSD",
@@ -66,8 +67,6 @@ const TV_SYMBOL_MAP: Record<string, string> = {
   DAX40: "XETR:DAX",
   UK100: "TVC:UKX",
   JP225: "TVC:NI225",
-  BTCUSD: "COINBASE:BTCUSD",
-  ETHUSD: "COINBASE:ETHUSD",
   XTIUSD: "TVC:USOIL",
   XBRUSD: "TVC:UKOIL",
   USOIL: "TVC:USOIL",
@@ -95,6 +94,8 @@ const TV_SYMBOL_MAP: Record<string, string> = {
 // TechnicalAnalysis widget uses TV's text interval identifiers (1h, 4h, 1D…),
 // not the numeric ones used by the Advanced Chart widget (60, 240, D…).
 const TV_TECHNICAL_INTERVAL_MAP: Record<string, string> = {
+  "15s": "15s",
+  "30s": "30s",
   "1m": "1m",
   "5m": "5m",
   "15m": "15m",
@@ -119,14 +120,7 @@ interface TradingViewTickerTapeProps {
 }
 
 const TICKER_TAPE_DEFAULT_SYMBOLS = [
-  { proName: "FX:EURUSD", title: "EUR/USD" },
-  { proName: "FX:GBPUSD", title: "GBP/USD" },
-  { proName: "FX:USDJPY", title: "USD/JPY" },
-  { proName: "TVC:GOLD", title: "Gold" },
-  { proName: "COINBASE:BTCUSD", title: "BTC/USD" },
-  { proName: "TVC:DJI", title: "Dow 30" },
-  { proName: "NASDAQ:NDX", title: "Nasdaq" },
-  { proName: "TVC:USOIL", title: "US Oil" },
+  { proName: "OANDA:XAUUSD", title: "Gold / USD" },
 ];
 
 export const TradingViewTickerTape = memo(function TradingViewTickerTape({

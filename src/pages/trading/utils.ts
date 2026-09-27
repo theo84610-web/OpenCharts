@@ -85,6 +85,8 @@ export function extractCurrencies(symbol: string): string[] {
 export function getCandleBucketTime(timestampMs: number, tf: Timeframe): number {
   const SEC = 1000;
   const intervals: Record<Timeframe, number> = {
+    "15s": 15 * SEC,
+    "30s": 30 * SEC,
     "1m": 60 * SEC,
     "5m": 5 * 60 * SEC,
     "15m": 15 * 60 * SEC,

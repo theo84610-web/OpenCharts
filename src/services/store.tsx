@@ -86,8 +86,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   demoLogin: async () => {
     // Clear any stale account selection from a previous session
     localStorage.removeItem("active_account");
-    // Force dark mode for demo
-    localStorage.setItem("theme", "dark");
+    localStorage.setItem("theme", "light");
     const data = await api.demoLogin();
     localStorage.setItem("access_token", data.accessToken);
     localStorage.setItem("refresh_token", data.refreshToken);
@@ -329,7 +328,7 @@ export const useTradingStore = create<TradingState>((set, get) => ({
   positions: [],
   orders: [],
   symbols: [],
-  selectedSymbol: "BTCUSD",
+  selectedSymbol: "XAU_USD",
   ticks: {},
   liveTicks: {},
   liveCandleUpdates: {},

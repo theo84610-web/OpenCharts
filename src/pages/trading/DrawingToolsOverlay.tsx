@@ -521,7 +521,7 @@ function TextSettings({
         label="Background"
         enabled={Boolean(drawing.textBg)}
         color={drawing.textBgColor ?? ""}
-        fallback="#1e222d"
+        fallback="#ffffff"
         onToggle={(textBg) => patch({ textBg })}
         onColor={(textBgColor) => patch({ textBgColor, textBg: true })}
       />

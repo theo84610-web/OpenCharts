@@ -1478,7 +1478,7 @@ export function ChartPanel({
       timeScale: {
         borderColor: colors.grid,
         timeVisible: true,
-        secondsVisible: timeframeRef.current === "1m",
+        secondsVisible: timeframeRef.current === "1m" || timeframeRef.current.endsWith("s"),
         rightOffset: timeframeRef.current === "1m" ? 10 : 6,
         minBarSpacing: 0.5,
         fixLeftEdge: false,
@@ -1732,7 +1732,7 @@ export function ChartPanel({
     timeframeRef.current = timeframe;
     chartRef.current?.applyOptions({
       timeScale: {
-        secondsVisible: timeframe === "1m",
+        secondsVisible: timeframe === "1m" || timeframe.endsWith("s"),
         rightOffset: timeframe === "1m" ? 10 : 6,
         minBarSpacing: 0.5,
       },

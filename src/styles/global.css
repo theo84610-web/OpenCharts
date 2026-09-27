@@ -3,60 +3,60 @@
 @tailwind utilities;
 
 @layer base {
-  /* Deep dark trading theme — inspired by E8 Markets aesthetic */
+  /* Permanent light trading theme */
   :root {
-    --background: 220 20% 4.5%;
-    --foreground: 210 20% 88%;
-    --card: 220 18% 7%;
-    --card-foreground: 210 20% 88%;
-    --primary: 168 80% 48%;
-    --primary-foreground: 220 20% 4.5%;
-    --secondary: 220 16% 11%;
-    --secondary-foreground: 210 20% 88%;
-    --muted: 220 14% 15%;
-    --muted-foreground: 215 12% 48%;
-    --accent: 168 80% 48%;
-    --accent-foreground: 220 20% 4.5%;
-    --destructive: 0 72% 56%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 220 14% 14%;
-    --input: 220 16% 11%;
-    --ring: 168 80% 48%;
+    --background: 210 20% 97%;
+    --foreground: 222 25% 12%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 25% 12%;
+    --primary: 168 85% 28%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 24% 93%;
+    --secondary-foreground: 222 25% 12%;
+    --muted: 210 20% 92%;
+    --muted-foreground: 215 14% 40%;
+    --accent: 168 85% 28%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 68% 42%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 214 20% 83%;
+    --input: 0 0% 100%;
+    --ring: 168 85% 28%;
     --radius: 0.5rem;
-    --success: 160 84% 44%;
-    --warning: 38 92% 50%;
-    --buy: 160 84% 44%;
-    --sell: 0 72% 56%;
-    --panel-header: 220 16% 9%;
-    --glow: 168 80% 48%;
+    --success: 160 100% 25%;
+    --warning: 38 92% 38%;
+    --buy: 160 100% 25%;
+    --sell: 0 68% 42%;
+    --panel-header: 210 24% 93%;
+    --glow: 168 85% 28%;
   }
 
-  /* Light theme */
+  /* Keep explicitly light-scoped surfaces consistent with the root theme. */
   .light {
-    --background: 0 0% 98%;
-    --foreground: 222.2 84% 4.9%;
+    --background: 210 20% 97%;
+    --foreground: 222 25% 12%;
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-    --primary: 168 80% 38%;
+    --card-foreground: 222 25% 12%;
+    --primary: 168 85% 28%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 210 40% 96%;
-    --secondary-foreground: 222.2 84% 4.9%;
-    --muted: 210 40% 93%;
-    --muted-foreground: 215 16% 47%;
-    --accent: 168 80% 38%;
+    --secondary: 210 24% 93%;
+    --secondary-foreground: 222 25% 12%;
+    --muted: 210 20% 92%;
+    --muted-foreground: 215 14% 40%;
+    --accent: 168 85% 28%;
     --accent-foreground: 0 0% 100%;
-    --destructive: 0 72% 51%;
+    --destructive: 0 68% 42%;
     --destructive-foreground: 0 0% 100%;
-    --border: 214 32% 91%;
-    --input: 214 32% 91%;
-    --ring: 168 80% 38%;
+    --border: 214 20% 83%;
+    --input: 0 0% 100%;
+    --ring: 168 85% 28%;
     --radius: 0.5rem;
-    --success: 160 84% 35%;
-    --warning: 38 92% 45%;
-    --buy: 160 84% 35%;
-    --sell: 0 72% 51%;
-    --panel-header: 210 40% 96%;
-    --glow: 168 80% 38%;
+    --success: 160 100% 25%;
+    --warning: 38 92% 38%;
+    --buy: 160 100% 25%;
+    --sell: 0 68% 42%;
+    --panel-header: 210 24% 93%;
+    --glow: 168 85% 28%;
   }
 
   * {

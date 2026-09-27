@@ -228,7 +228,7 @@ interface SymbolPerf {
 }
 
 export function MultiSymbolComparison({
-  symbols = ["EURUSD", "GBPUSD", "USDJPY", "XAUUSD", "BTCUSD"],
+  symbols = ["XAU_USD"],
 }: {
   symbols?: string[];
 }) {

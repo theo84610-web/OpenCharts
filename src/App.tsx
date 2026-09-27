@@ -34,7 +34,7 @@ export function App() {
 
   if (!ready) {
     return (
-      <div className="flex h-screen w-screen items-center justify-center bg-[#0a0a0a] text-neutral-400">
+      <div className="flex h-screen w-screen items-center justify-center bg-background text-muted-foreground">
         Loading OpenCharts…
       </div>
     );

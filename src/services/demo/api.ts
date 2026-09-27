@@ -1,6 +1,4 @@
 import type { DrawingLine } from "../../pages/trading/constants.ts";
-import type { Candle } from "../schemas.ts";
-import { getHistory } from "./candles.ts";
 import * as engine from "./engine.ts";
 import { DEMO_SYMBOLS } from "./instruments.ts";
 
@@ -58,11 +56,6 @@ const chartDrawings = {
     return Promise.resolve({ cleared: true });
   },
 };
-
-const candlesMeta = (candles: Candle[]) => ({
-  candles,
-  metadata: { isPartial: false, backfillQueued: false, historicalCoverageStart: null },
-});
 
 export const demoApi = {
   // ── Auth (no real auth in demo) ──
@@ -129,14 +122,6 @@ export const demoApi = {
 
   // ── Symbols & market data ──
   getSymbols: () => Promise.resolve(DEMO_SYMBOLS),
-  getCandles: (symbol: string, timeframe: string, limit?: number) =>
-    Promise.resolve(getHistory(symbol, timeframe, limit)),
-  getCandlesWithMeta: (symbol: string, timeframe: string, limit?: number) =>
-    Promise.resolve(candlesMeta(getHistory(symbol, timeframe, limit))),
-  getTick: (symbol: string) => {
-    const price = engine.getLastPrice(symbol);
-    return Promise.resolve({ symbol, bid: price, ask: price, timestamp: Date.now() });
-  },
   getMarketDataHealth: () => Promise.resolve({ status: "ok" }),
   getEconomicCalendar: () => Promise.resolve([]),
 

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { cn, formatCurrency, formatNumber, pnlClass } from "@/lib/utils";
+import { getCandleBucketTime } from "@/pages/trading/utils";
 
 describe("cn (class name merge)", () => {
   it("merges class names", () => {
@@ -73,5 +74,12 @@ describe("pnlClass", () => {
 
   it("returns muted for zero", () => {
     expect(pnlClass(0)).toBe("text-muted-foreground");
+  });
+});
+
+describe("getCandleBucketTime", () => {
+  it("buckets 15-second and 30-second timeframes", () => {
+    expect(getCandleBucketTime(31_000, "15s")).toBe(30);
+    expect(getCandleBucketTime(61_000, "30s")).toBe(60);
   });
 });

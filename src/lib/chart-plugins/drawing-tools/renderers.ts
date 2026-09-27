@@ -277,7 +277,7 @@ function renderText(scope: BitmapCoordinatesRenderingScope, e: ResolvedEntry): v
   const by = at.y - pad;
 
   if (e.d.textBg) {
-    ctx.fillStyle = e.d.textBgColor ?? "#1e222d";
+    ctx.fillStyle = e.d.textBgColor ?? "#ffffff";
     ctx.fillRect(bx, by, boxW, boxH);
   }
   if (e.d.textBorder) {

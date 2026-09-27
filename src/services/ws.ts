@@ -1,19 +1,80 @@
-/**
- * Demo WebSocket client.
- *
- * OpenCharts ships without a backend, so this replaces the real reconnecting
- * WebSocket with an in-process client backed by the demo event bus + feed
- * (services/demo). It exposes the same public surface the app already uses
- * (connect / subscribe / subscribeAccounts / onStateChange / state), so no
- * consumer (MarketDataBridge, ConnectionIndicator, store, …) had to change.
- */
+/** OANDA pricing stream client plus the local paper-trading event bus. */
+import { mark } from "./demo/engine.ts";
 import { publish, subscribeChannel, type ChannelHandler } from "./demo/bus.ts";
-import { startDemoFeed } from "./demo/feed.ts";
 
 export type ConnectionState = "connected" | "connecting" | "reconnecting" | "disconnected";
 export type WsHandler = ChannelHandler;
 
-class DemoWsClient {
+type OandaPriceMessage = {
+  type?: string;
+  instrument?: string;
+  time?: string;
+  bids?: Array<{ price: string }>;
+  asks?: Array<{ price: string }>;
+};
+
+const OANDA_STREAM_URL = "https://stream-fxpractice.oanda.com";
+
+function waitToReconnect(signal: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    const finish = () => {
+      clearTimeout(timer);
+      signal.removeEventListener("abort", finish);
+      resolve();
+    };
+    const timer = setTimeout(finish, 1_000);
+    signal.addEventListener("abort", finish, { once: true });
+  });
+}
+
+function publishPriceLine(line: string): void {
+  let message: OandaPriceMessage;
+  try {
+    message = JSON.parse(line) as OandaPriceMessage;
+  } catch {
+    return;
+  }
+  if (message.type !== "PRICE" || message.instrument !== "XAU_USD") return;
+
+  const bid = Number(message.bids?.[0]?.price);
+  const ask = Number(message.asks?.[0]?.price);
+  if (!Number.isFinite(bid) || !Number.isFinite(ask)) return;
+
+  const midpoint = (bid + ask) / 2;
+  publish("market-data", {
+    eventType: "MarketTick",
+    symbol: "XAU_USD",
+    bid,
+    ask,
+    occurredAt: message.time ?? Date.now(),
+  });
+  mark("XAU_USD", midpoint);
+}
+
+async function readPricingStream(response: Response, signal: AbortSignal): Promise<void> {
+  if (!response.body) throw new Error("OANDA pricing stream has no response body");
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let pending = "";
+  try {
+    while (!signal.aborted) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      pending += decoder.decode(value, { stream: true });
+      const lines = pending.split(/\r?\n/);
+      pending = lines.pop() ?? "";
+      for (const line of lines) {
+        if (line.trim()) publishPriceLine(line);
+      }
+    }
+    pending += decoder.decode();
+    if (pending.trim()) publishPriceLine(pending);
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+class OandaWsClient {
   private _state: ConnectionState = "disconnected";
   private stateListeners = new Set<(s: ConnectionState) => void>();
 
@@ -26,20 +87,32 @@ class DemoWsClient {
     for (const cb of this.stateListeners) cb(next);
   }
 
+  private controller: AbortController | null = null;
+
   connect(_token?: string): void {
+    this.controller?.abort();
+    const apiKey = import.meta.env.OANDA_API_KEY;
+    const accountId = import.meta.env.OANDA_ACCOUNT_ID;
+    if (!apiKey || !accountId) {
+      this.controller = null;
+      this.setState("disconnected");
+      return;
+    }
+
+    const controller = new AbortController();
+    this.controller = controller;
     this.setState("connecting");
-    startDemoFeed();
-    // Resolve to connected on the next tick so onStateChange subscribers
-    // registered synchronously after connect() still receive the transition.
-    setTimeout(() => this.setState("connected"), 0);
+    void this.consumePricingStream(apiKey, accountId, controller.signal);
   }
 
   disconnect(): void {
+    this.controller?.abort();
+    this.controller = null;
     this.setState("disconnected");
   }
 
   reauthenticate(_token: string): void {
-    // No auth in demo mode — nothing to refresh.
+    // OANDA credentials are supplied through the configured environment.
   }
 
   subscribe(channel: string, handler: WsHandler): () => void {
@@ -51,7 +124,7 @@ class DemoWsClient {
   }
 
   setSymbolInterest(_symbols: string[]): void {
-    // The demo feed streams every symbol; nothing to gate.
+    // The OANDA stream is intentionally fixed to the single supported instrument.
   }
 
   onStateChange(cb: (s: ConnectionState) => void): () => void {
@@ -66,6 +139,36 @@ class DemoWsClient {
   emit(channel: string, event: unknown): void {
     publish(channel, event);
   }
+
+  private async consumePricingStream(
+    apiKey: string,
+    accountId: string,
+    signal: AbortSignal,
+  ): Promise<void> {
+    const url = `${OANDA_STREAM_URL}/v3/accounts/${encodeURIComponent(accountId)}/pricing/stream?instruments=XAU_USD`;
+    while (!signal.aborted) {
+      try {
+        const response = await fetch(url, {
+          headers: { Authorization: `Bearer ${apiKey}`, Accept: "application/octet-stream" },
+          signal,
+        });
+        if (!response.ok) throw new Error(`OANDA stream failed with HTTP ${response.status}`);
+        this.setState("connected");
+        await readPricingStream(response, signal);
+      } catch {
+        if (signal.aborted) break;
+        this.setState("reconnecting");
+      }
+      if (!signal.aborted) {
+        this.setState("reconnecting");
+        await waitToReconnect(signal);
+      }
+    }
+    if (this.controller?.signal === signal) {
+      this.controller = null;
+      this.setState("disconnected");
+    }
+  }
 }
 
-export const wsClient = new DemoWsClient();
+export const wsClient = new OandaWsClient();
