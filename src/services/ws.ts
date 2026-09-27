@@ -1,12 +1,7 @@
 /** OANDA pricing stream client plus the local paper-trading event bus. */
 import { mark } from "./demo/engine.ts";
 import { publish, subscribeChannel, type ChannelHandler } from "./demo/bus.ts";
-import {
-  clearOandaError,
-  getOandaAccountId,
-  getOandaApiKey,
-  reportOandaError,
-} from "./oanda-diagnostics.ts";
+import { getOandaAccountId, getOandaApiKey } from "./oanda-config.ts";
 
 export type ConnectionState = "connected" | "connecting" | "reconnecting" | "disconnected";
 export type WsHandler = ChannelHandler;
@@ -128,10 +123,6 @@ class OandaWsClient {
     const accountId = getOandaAccountId();
     if (!apiKey || !accountId) {
       this.controller = null;
-      reportOandaError(
-        "STREAM",
-        new Error(!apiKey ? "OANDA_API_KEY is not configured" : "OANDA_ACCOUNT_ID is not configured"),
-      );
       this.setState("disconnected");
       return;
     }
@@ -252,14 +243,12 @@ class OandaWsClient {
         await readPricingStream(response, attempt.signal, () => {
           this.lastStreamActivityAt = Date.now();
           retryDelay = 1_000;
-          clearOandaError("STREAM");
           this.setState("connected");
         }, () => {
           this.lastStreamActivityAt = Date.now();
         });
       } catch (error) {
         if (!signal.aborted) {
-          reportOandaError("STREAM", error);
           attempt.abort();
         }
       }

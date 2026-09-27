@@ -7,12 +7,7 @@ import { DEMO_SYMBOLS } from "./demo/instruments.ts";
 import type { Symbol } from "./schemas.ts";
 import type { MarketDataCandle } from "./api/market-data.ts";
 import { TIMEFRAMES, type Timeframe } from "../pages/trading/constants.ts";
-import {
-  clearOandaError,
-  getOandaAccountId,
-  getOandaApiKey,
-  reportOandaError,
-} from "./oanda-diagnostics.ts";
+import { getOandaAccountId, getOandaApiKey } from "./oanda-config.ts";
 
 export const API_BASE = "";
 
@@ -51,43 +46,19 @@ type OandaCandle = {
 async function oandaGet<T>(url: string): Promise<T> {
   const apiKey = getOandaApiKey();
   if (!apiKey) {
-    const error = new ApiError("OANDA_API_KEY is not configured");
-    reportOandaError("REST", error);
-    throw error;
+    throw new ApiError("OANDA_API_KEY is not configured");
   }
 
-  let response: Response;
-  try {
-    response = await fetch(url, {
-      headers: { Authorization: `Bearer ${apiKey}`, Accept: "application/json" },
-    });
-  } catch (error) {
-    reportOandaError("REST", error);
-    throw error;
-  }
-
-  let body: string;
-  try {
-    body = await response.text();
-  } catch (error) {
-    reportOandaError("REST", error);
-    throw error;
-  }
+  const response = await fetch(url, {
+    headers: { Authorization: `Bearer ${apiKey}`, Accept: "application/json" },
+  });
+  const body = await response.text();
   if (!response.ok) {
     const message = `HTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ""}${body ? `: ${body}` : ""}`;
-    const error = new ApiError(message, response.status);
-    reportOandaError("REST", error);
-    throw error;
+    throw new ApiError(message, response.status);
   }
 
-  try {
-    const result = JSON.parse(body) as T;
-    clearOandaError("REST");
-    return result;
-  } catch (error) {
-    reportOandaError("REST", error);
-    throw error;
-  }
+  return JSON.parse(body) as T;
 }
 
 function assertInstrument(symbol: string): void {
@@ -151,9 +122,7 @@ async function getTick(symbol: string) {
   assertInstrument(symbol);
   const accountId = getOandaAccountId();
   if (!accountId) {
-    const error = new ApiError("OANDA_ACCOUNT_ID is not configured");
-    reportOandaError("REST", error);
-    throw error;
+    throw new ApiError("OANDA_ACCOUNT_ID is not configured");
   }
   const url = `${OANDA_BASE_URL}/v3/accounts/${encodeURIComponent(accountId)}/pricing?instruments=XAU_USD`;
   const response = await oandaGet<{
