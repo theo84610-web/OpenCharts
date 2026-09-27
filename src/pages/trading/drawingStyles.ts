@@ -16,6 +16,12 @@ export type StylePatch = Partial<
     | "arrowStart"
     | "arrowEnd"
     | "fontSize"
+    | "bold"
+    | "italic"
+    | "textBg"
+    | "textBgColor"
+    | "textBorder"
+    | "textBorderColor"
   >
 >;
 
@@ -58,7 +64,36 @@ export function pickStyle(d: DrawingLine): StylePatch {
     arrowStart: d.arrowStart,
     arrowEnd: d.arrowEnd,
     fontSize: d.fontSize,
+    bold: d.bold,
+    italic: d.italic,
+    textBg: d.textBg,
+    textBgColor: d.textBgColor,
+    textBorder: d.textBorder,
+    textBorderColor: d.textBorderColor,
   };
+}
+
+const STYLE_KEYS: Array<keyof StylePatch> = [
+  "color",
+  "width",
+  "lineStyle",
+  "fillColor",
+  "fillOpacity",
+  "arrowStart",
+  "arrowEnd",
+  "fontSize",
+  "bold",
+  "italic",
+  "textBg",
+  "textBgColor",
+  "textBorder",
+  "textBorderColor",
+];
+
+export function hasStyleChanged(before: DrawingLine, after: DrawingLine): boolean {
+  const beforeStyle = pickStyle(before);
+  const afterStyle = pickStyle(after);
+  return STYLE_KEYS.some((key) => beforeStyle[key] !== afterStyle[key]);
 }
 
 export function getStyleDefaults(): Record<string, StylePatch> {

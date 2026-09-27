@@ -260,6 +260,7 @@ function FillControls({
   drawing: DrawingLine;
   patch: (p: Partial<DrawingLine>) => void;
 }) {
+  const opacity = Math.min(1, Math.max(0, drawing.fillOpacity ?? 0.14));
   return (
     <SettingsRow label="Fill">
       <div className="flex items-center gap-2">
@@ -267,17 +268,22 @@ function FillControls({
           type="color"
           value={drawing.fillColor ?? drawing.color}
           onChange={(e) => patch({ fillColor: e.target.value })}
+          aria-label="Fill color"
           className="h-6 w-8 cursor-pointer bg-transparent border-0 p-0"
         />
         <input
           type="range"
           min={0}
-          max={1}
-          step={0.05}
-          value={drawing.fillOpacity ?? 0.14}
-          onChange={(e) => patch({ fillOpacity: Number.parseFloat(e.target.value) })}
+          max={100}
+          step={1}
+          value={Math.round(opacity * 100)}
+          aria-label="Fill opacity"
+          onChange={(e) => patch({ fillOpacity: Number.parseInt(e.target.value, 10) / 100 })}
           className="w-20"
         />
+        <span className="w-8 text-right text-[10px] tabular-nums text-muted-foreground">
+          {Math.round(opacity * 100)}%
+        </span>
       </div>
     </SettingsRow>
   );

@@ -63,7 +63,12 @@ import {
   DrawingSettingsDialog,
 } from "./DrawingToolsOverlay.tsx";
 import { DrawingToolRail } from "./DrawingToolRail.tsx";
-import { DRAWING_STYLES_EVENT, getStyleDefaults } from "./drawingStyles.ts";
+import {
+  DRAWING_STYLES_EVENT,
+  getStyleDefaults,
+  hasStyleChanged,
+  setTypeDefault,
+} from "./drawingStyles.ts";
 import { NewsOverlay } from "./NewsOverlay.tsx";
 import { ObjectTreePanel } from "./ObjectTreePanel.tsx";
 import { useChallengeLevels } from "./useChallengeLevels.ts";
@@ -1225,6 +1230,16 @@ export function ChartPanel({
   const onDrawingToolSelectRef = useRef(onDrawingToolSelect);
   const onUndoDrawingRef = useRef(onUndoDrawing);
   const onRedoDrawingRef = useRef(onRedoDrawing);
+  const handleUpdateDrawing = useCallback(
+    (drawing: DrawingLine) => {
+      const before = drawings.find((candidate) => candidate.id === drawing.id);
+      if (before && hasStyleChanged(before, drawing)) {
+        setTypeDefault(drawing.type, drawing);
+      }
+      onUpdateDrawing?.(drawing);
+    },
+    [drawings, onUpdateDrawing],
+  );
   useEffect(() => {
     drawingToolRef.current = drawingTool;
     drawingManagerRef.current?.setTool(drawingTool);
@@ -1255,7 +1270,7 @@ export function ChartPanel({
   }, [stayInDrawingMode]);
   useEffect(() => {
     onAddDrawingRef.current = onAddDrawing;
-    onUpdateDrawingRef.current = onUpdateDrawing;
+    onUpdateDrawingRef.current = handleUpdateDrawing;
     onRemoveDrawingRef.current = onRemoveDrawing;
     onDrawingCompleteRef.current = onDrawingComplete;
     onDrawingToolSelectRef.current = onDrawingToolSelect;
@@ -2035,7 +2050,7 @@ export function ChartPanel({
         drawing={selectedDrawing}
         showSettings={showDrawingSettings}
         currentTf={timeframe}
-        onUpdate={(d) => onUpdateDrawing?.(d)}
+        onUpdate={handleUpdateDrawing}
         onClone={handleCloneDrawing}
         onRemove={() => selectedDrawing && onRemoveDrawing?.(selectedDrawing.id)}
         onOpenSettings={() => setShowDrawingSettings(true)}
@@ -2052,10 +2067,10 @@ export function ChartPanel({
           onDuplicate={handleCloneDrawing}
           onReorder={(dir) => handleReorderDrawing(selectedDrawing, dir)}
           onToggleLock={() =>
-            onUpdateDrawing?.({ ...selectedDrawing, locked: !selectedDrawing.locked })
+            handleUpdateDrawing({ ...selectedDrawing, locked: !selectedDrawing.locked })
           }
           onToggleAlert={() =>
-            onUpdateDrawing?.({ ...selectedDrawing, alertEnabled: !selectedDrawing.alertEnabled })
+            handleUpdateDrawing({ ...selectedDrawing, alertEnabled: !selectedDrawing.alertEnabled })
           }
           onRemove={() => onRemoveDrawing?.(selectedDrawing.id)}
         />
@@ -2070,7 +2085,7 @@ export function ChartPanel({
         open={showObjectTree}
         onToggle={() => setShowObjectTree((v) => !v)}
         onSelect={handleObjectTreeSelect}
-        onUpdate={(d) => onUpdateDrawing?.(d)}
+        onUpdate={handleUpdateDrawing}
         onRemove={(id) => onRemoveDrawing?.(id)}
         onReorder={handleReorderDrawing}
       />

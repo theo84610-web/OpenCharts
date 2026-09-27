@@ -533,9 +533,12 @@ function renderRectangle(scope: BitmapCoordinatesRenderingScope, e: ResolvedEntr
   const a = toBitmap(scope, e.x1, e.y1);
   const b = toBitmap(scope, e.x2, e.y2);
   const ctx = scope.context;
+  const fillOpacity = Math.min(1, Math.max(0, e.d.fillOpacity ?? RECT_FILL_ALPHA));
   ctx.save();
-  ctx.fillStyle = hexToRgba(e.d.color, RECT_FILL_ALPHA);
-  ctx.fillRect(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.abs(b.x - a.x), Math.abs(b.y - a.y));
+  if (fillOpacity > 0) {
+    ctx.fillStyle = hexToRgba(e.d.fillColor ?? e.d.color, fillOpacity);
+    ctx.fillRect(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.abs(b.x - a.x), Math.abs(b.y - a.y));
+  }
   ctx.strokeStyle = e.d.color;
   ctx.lineWidth = (e.d.width ?? 1.5) * scope.verticalPixelRatio;
   applyDash(scope, dashFor(e.d.lineStyle));
