@@ -56,6 +56,14 @@ const RESET_BY_TAB: Partial<Record<TabId, Partial<ChartPreferences>>> = {
   colors: {
     candleUpColor: "",
     candleDownColor: "",
+    candleUpBorderMode: "body",
+    candleUpBorderColor: "",
+    candleDownBorderMode: "body",
+    candleDownBorderColor: "",
+    candleUpWickMode: "body",
+    candleUpWickColor: "",
+    candleDownWickMode: "body",
+    candleDownWickColor: "",
     colorBackground: "",
     colorGrid: "",
     colorScaleText: "",
@@ -196,9 +204,14 @@ function ColorPairRow({
   );
 }
 
-function SectionTitle({ children }: { children: ReactNode }) {
+function SectionTitle({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <div className="mb-1 mt-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground first:mt-0">
+    <div
+      className={cn(
+        "mb-1 mt-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground first:mt-0",
+        className,
+      )}
+    >
       {children}
     </div>
   );
@@ -332,27 +345,312 @@ function LineColorRows({ prefs, theme }: { prefs: ChartPreferences; theme: Chart
   );
 }
 
-function ColorsTab({ prefs, isDark }: { prefs: ChartPreferences; isDark: boolean }) {
-  const theme = isDark ? CHART_COLORS.dark : CHART_COLORS.light;
+const CANDLE_PRESETS: Array<{ name: string; values: Partial<ChartPreferences> }> = [
+  {
+    name: "Classic Green/Red",
+    values: {
+      candleUpColor: "#26a69a",
+      candleDownColor: "#ef5350",
+      candleUpBorderMode: "body",
+      candleUpBorderColor: "",
+      candleDownBorderMode: "body",
+      candleDownBorderColor: "",
+      candleUpWickMode: "body",
+      candleUpWickColor: "",
+      candleDownWickMode: "body",
+      candleDownWickColor: "",
+    },
+  },
+  {
+    name: "TradingView Default",
+    values: {
+      candleUpColor: "#089981",
+      candleDownColor: "#f23645",
+      candleUpBorderMode: "body",
+      candleUpBorderColor: "",
+      candleDownBorderMode: "body",
+      candleDownBorderColor: "",
+      candleUpWickMode: "body",
+      candleUpWickColor: "",
+      candleDownWickMode: "body",
+      candleDownWickColor: "",
+    },
+  },
+  {
+    name: "Black & White",
+    values: {
+      candleUpColor: "#ffffff",
+      candleDownColor: "#111827",
+      candleUpBorderMode: "custom",
+      candleUpBorderColor: "#111827",
+      candleDownBorderMode: "custom",
+      candleDownBorderColor: "#111827",
+      candleUpWickMode: "custom",
+      candleUpWickColor: "#111827",
+      candleDownWickMode: "custom",
+      candleDownWickColor: "#111827",
+    },
+  },
+  {
+    name: "Blue/Orange",
+    values: {
+      candleUpColor: "#2962ff",
+      candleDownColor: "#ff9800",
+      candleUpBorderMode: "body",
+      candleUpBorderColor: "",
+      candleDownBorderMode: "body",
+      candleDownBorderColor: "",
+      candleUpWickMode: "body",
+      candleUpWickColor: "",
+      candleDownWickMode: "body",
+      candleDownWickColor: "",
+    },
+  },
+];
+
+function CandleColorPicker({
+  label,
+  value,
+  fallback,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  fallback: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="flex min-w-0 items-center justify-between gap-2 text-[11px] text-muted-foreground">
+      <span className="truncate">{label}</span>
+      <input
+        type="color"
+        aria-label={label}
+        value={value || fallback}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-7 w-9 shrink-0 cursor-pointer rounded border border-border bg-transparent p-0.5"
+      />
+    </label>
+  );
+}
+
+function CandleModeSelect({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: Array<{ value: string; label: string }>;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="flex min-w-0 flex-col gap-1 text-[11px] text-muted-foreground">
+      <span>{label}</span>
+      <select
+        aria-label={label}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-7 rounded border border-border bg-background px-1.5 text-[11px] text-foreground"
+      >
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function CandleStylePreview({ prefs, theme }: { prefs: ChartPreferences; theme: ChartColors }) {
+  const bodies = [prefs.candleUpColor || theme.up, prefs.candleDownColor || theme.down];
+  const borders = [
+    prefs.candleUpBorderMode === "none"
+      ? "transparent"
+      : prefs.candleUpBorderMode === "custom"
+        ? prefs.candleUpBorderColor || bodies[0]
+        : bodies[0],
+    prefs.candleDownBorderMode === "none"
+      ? "transparent"
+      : prefs.candleDownBorderMode === "custom"
+        ? prefs.candleDownBorderColor || bodies[1]
+        : bodies[1],
+  ];
+  const wicks = [
+    prefs.candleUpWickMode === "custom" ? prefs.candleUpWickColor || bodies[0] : bodies[0],
+    prefs.candleDownWickMode === "custom" ? prefs.candleDownWickColor || bodies[1] : bodies[1],
+  ];
+  const candles = [
+    { x: 42, high: 10, top: 28, bottom: 56, low: 76, down: false },
+    { x: 100, high: 18, top: 39, bottom: 64, low: 82, down: true },
+    { x: 158, high: 7, top: 24, bottom: 49, low: 69, down: false },
+  ];
+
+  return (
+    <svg
+      viewBox="0 0 200 90"
+      role="img"
+      aria-label="Preview of bullish and bearish candles"
+      className="h-20 w-full rounded border border-border bg-background"
+    >
+      {[24, 45, 66].map((y) => (
+        <line key={y} x1="0" x2="200" y1={y} y2={y} stroke="currentColor" opacity="0.08" />
+      ))}
+      {candles.map((candle, index) => {
+        const colorIndex = candle.down ? 1 : 0;
+        const border = prefs.showCandleBorders && borders[colorIndex] !== "transparent"
+          ? borders[colorIndex]
+          : "transparent";
+        return (
+          <g key={candle.x}>
+            {prefs.showWicks && (
+              <line
+                x1={candle.x}
+                x2={candle.x}
+                y1={candle.high}
+                y2={candle.low}
+                stroke={wicks[colorIndex]}
+                strokeWidth="2"
+              />
+            )}
+            <rect
+              x={candle.x - 10}
+              y={candle.top}
+              width="20"
+              height={candle.bottom - candle.top}
+              fill={bodies[colorIndex]}
+              stroke={border}
+              strokeWidth="2"
+            />
+            <title>{index === 1 ? "Bearish candle" : "Bullish candle"}</title>
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+function CandleStylePanel({ prefs, theme }: { prefs: ChartPreferences; theme: ChartColors }) {
   const set = updateChartPreferences;
+  const borderOptions = [
+    { value: "body", label: "Match body" },
+    { value: "custom", label: "Custom" },
+    { value: "none", label: "No border" },
+  ];
+  const wickOptions = [
+    { value: "body", label: "Match body" },
+    { value: "custom", label: "Custom" },
+  ];
+
   return (
     <div>
+      <SectionTitle>Candle style</SectionTitle>
+      <CandleStylePreview prefs={prefs} theme={theme} />
+      <div className="mt-2 grid grid-cols-2 gap-1.5">
+        {CANDLE_PRESETS.map((preset) => (
+          <button
+            key={preset.name}
+            type="button"
+            onClick={() => set({ ...preset.values, showCandleBorders: true, showWicks: true })}
+            className="rounded border border-border px-2 py-1.5 text-left text-[11px] text-foreground hover:bg-secondary"
+          >
+            {preset.name}
+          </button>
+        ))}
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2">
+        <SectionTitle className="col-span-2">Body</SectionTitle>
+        <CandleColorPicker
+          label="Bullish body"
+          value={prefs.candleUpColor}
+          fallback={theme.up}
+          onChange={(value) => set({ candleUpColor: value })}
+        />
+        <CandleColorPicker
+          label="Bearish body"
+          value={prefs.candleDownColor}
+          fallback={theme.down}
+          onChange={(value) => set({ candleDownColor: value })}
+        />
+        <SectionTitle className="col-span-2">Borders / outline</SectionTitle>
+        <div className="space-y-2">
+          <CandleModeSelect
+            label="Bullish border"
+            value={prefs.candleUpBorderMode}
+            options={borderOptions}
+            onChange={(value) => set({ candleUpBorderMode: value as ChartPreferences["candleUpBorderMode"] })}
+          />
+          {prefs.candleUpBorderMode === "custom" && (
+            <CandleColorPicker
+              label="Bullish border color"
+              value={prefs.candleUpBorderColor}
+              fallback={prefs.candleUpColor || theme.up}
+              onChange={(value) => set({ candleUpBorderColor: value })}
+            />
+          )}
+        </div>
+        <div className="space-y-2">
+          <CandleModeSelect
+            label="Bearish border"
+            value={prefs.candleDownBorderMode}
+            options={borderOptions}
+            onChange={(value) => set({ candleDownBorderMode: value as ChartPreferences["candleDownBorderMode"] })}
+          />
+          {prefs.candleDownBorderMode === "custom" && (
+            <CandleColorPicker
+              label="Bearish border color"
+              value={prefs.candleDownBorderColor}
+              fallback={prefs.candleDownColor || theme.down}
+              onChange={(value) => set({ candleDownBorderColor: value })}
+            />
+          )}
+        </div>
+        <SectionTitle className="col-span-2">Wicks</SectionTitle>
+        <div className="space-y-2">
+          <CandleModeSelect
+            label="Bullish wick"
+            value={prefs.candleUpWickMode}
+            options={wickOptions}
+            onChange={(value) => set({ candleUpWickMode: value as ChartPreferences["candleUpWickMode"] })}
+          />
+          {prefs.candleUpWickMode === "custom" && (
+            <CandleColorPicker
+              label="Bullish wick color"
+              value={prefs.candleUpWickColor}
+              fallback={prefs.candleUpColor || theme.up}
+              onChange={(value) => set({ candleUpWickColor: value })}
+            />
+          )}
+        </div>
+        <div className="space-y-2">
+          <CandleModeSelect
+            label="Bearish wick"
+            value={prefs.candleDownWickMode}
+            options={wickOptions}
+            onChange={(value) => set({ candleDownWickMode: value as ChartPreferences["candleDownWickMode"] })}
+          />
+          {prefs.candleDownWickMode === "custom" && (
+            <CandleColorPicker
+              label="Bearish wick color"
+              value={prefs.candleDownWickColor}
+              fallback={prefs.candleDownColor || theme.down}
+              onChange={(value) => set({ candleDownWickColor: value })}
+            />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ColorsTab({ prefs, isDark }: { prefs: ChartPreferences; isDark: boolean }) {
+  const theme = isDark ? CHART_COLORS.dark : CHART_COLORS.light;
+  return (
+    <div>
+      <CandleStylePanel prefs={prefs} theme={theme} />
       <ElementColorRows prefs={prefs} theme={theme} />
       <LineColorRows prefs={prefs} theme={theme} />
-      <SectionTitle>Candles</SectionTitle>
-      <ColorPairRow
-        label="Candle body, border &amp; wick"
-        a={{
-          value: prefs.candleUpColor,
-          fallback: theme.up,
-          onChange: (v) => set({ candleUpColor: v }),
-        }}
-        b={{
-          value: prefs.candleDownColor,
-          fallback: theme.down,
-          onChange: (v) => set({ candleDownColor: v }),
-        }}
-      />
     </div>
   );
 }

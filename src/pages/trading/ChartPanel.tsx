@@ -1710,19 +1710,43 @@ export function ChartPanel({
     // `colors` already carries the user's overrides (mergeChartColors).
     const up = colors.up;
     const down = colors.down;
+    const borderUp =
+      chartPrefs.candleUpBorderMode === "none"
+        ? "rgba(0, 0, 0, 0)"
+        : chartPrefs.candleUpBorderMode === "custom"
+          ? chartPrefs.candleUpBorderColor || up
+          : up;
+    const borderDown =
+      chartPrefs.candleDownBorderMode === "none"
+        ? "rgba(0, 0, 0, 0)"
+        : chartPrefs.candleDownBorderMode === "custom"
+          ? chartPrefs.candleDownBorderColor || down
+          : down;
+    const wickUp =
+      chartPrefs.candleUpWickMode === "custom" ? chartPrefs.candleUpWickColor || up : up;
+    const wickDown =
+      chartPrefs.candleDownWickMode === "custom" ? chartPrefs.candleDownWickColor || down : down;
     candleSeriesRef.current?.applyOptions({
       upColor: up,
       downColor: down,
-      borderUpColor: up,
-      borderDownColor: down,
-      wickUpColor: up,
-      wickDownColor: down,
+      borderUpColor: borderUp,
+      borderDownColor: borderDown,
+      wickUpColor: wickUp,
+      wickDownColor: wickDown,
       wickVisible: chartPrefs.showWicks,
       borderVisible: chartPrefs.showCandleBorders,
     });
   }, [
     chartPrefs.candleUpColor,
     chartPrefs.candleDownColor,
+    chartPrefs.candleUpBorderMode,
+    chartPrefs.candleUpBorderColor,
+    chartPrefs.candleDownBorderMode,
+    chartPrefs.candleDownBorderColor,
+    chartPrefs.candleUpWickMode,
+    chartPrefs.candleUpWickColor,
+    chartPrefs.candleDownWickMode,
+    chartPrefs.candleDownWickColor,
     chartPrefs.showWicks,
     chartPrefs.showCandleBorders,
     colors.up,

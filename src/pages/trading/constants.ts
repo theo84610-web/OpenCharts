@@ -88,7 +88,7 @@ export interface ChartColorOverrides {
   colorOrderLine: string;
   colorTpLine: string;
   colorSlLine: string;
-  /** Candle body colors (also drive wicks/borders unless overridden). */
+  /** Candle body colors; borders and wicks are configured separately. */
   candleUpColor: string;
   candleDownColor: string;
 }

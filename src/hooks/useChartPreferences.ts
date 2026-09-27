@@ -32,11 +32,19 @@ export interface ChartPreferences {
   engulfingZonesBullishBorderColor: string;
   engulfingZonesBearishFillColor: string;
   engulfingZonesBearishBorderColor: string;
-  // ── Appearance (Chart Settings dialog) ──
+  // ── Candle style (Chart Settings → Colors) ──
   /** Hex override for up candles; empty string = theme default. */
   candleUpColor: string;
   /** Hex override for down candles; empty string = theme default. */
   candleDownColor: string;
+  candleUpBorderMode: "body" | "custom" | "none";
+  candleUpBorderColor: string;
+  candleDownBorderMode: "body" | "custom" | "none";
+  candleDownBorderColor: string;
+  candleUpWickMode: "body" | "custom";
+  candleUpWickColor: string;
+  candleDownWickMode: "body" | "custom";
+  candleDownWickColor: string;
   // ── Color overrides (Chart Settings → Colors; empty = theme default) ──
   colorBackground: string;
   colorGrid: string;
@@ -97,6 +105,14 @@ const DEFAULT_CHART_PREFS: ChartPreferences = {
   engulfingZonesBearishBorderColor: "#ea580c",
   candleUpColor: "",
   candleDownColor: "",
+  candleUpBorderMode: "body",
+  candleUpBorderColor: "",
+  candleDownBorderMode: "body",
+  candleDownBorderColor: "",
+  candleUpWickMode: "body",
+  candleUpWickColor: "",
+  candleDownWickMode: "body",
+  candleDownWickColor: "",
   colorBackground: "",
   colorGrid: "",
   colorScaleText: "",
@@ -150,6 +166,10 @@ const BOOL_PREF_KEYS = [
 const STRING_PREF_KEYS = [
   "candleUpColor",
   "candleDownColor",
+  "candleUpBorderColor",
+  "candleDownBorderColor",
+  "candleUpWickColor",
+  "candleDownWickColor",
   "colorBackground",
   "colorGrid",
   "colorScaleText",
@@ -215,6 +235,14 @@ export const TEMPLATE_PREF_KEYS = [
   "engulfingZonesBearishBorderColor",
   "candleUpColor",
   "candleDownColor",
+  "candleUpBorderMode",
+  "candleUpBorderColor",
+  "candleDownBorderMode",
+  "candleDownBorderColor",
+  "candleUpWickMode",
+  "candleUpWickColor",
+  "candleDownWickMode",
+  "candleDownWickColor",
   "colorBackground",
   "colorGrid",
   "colorScaleText",
@@ -232,6 +260,14 @@ export type TemplatePrefKey = (typeof TEMPLATE_PREF_KEYS)[number];
 
 function toMagnetMode(input: string | undefined): MagnetMode | undefined {
   return input === "weak" || input === "strong" || input === "none" ? input : undefined;
+}
+
+function toCandleBorderMode(input: string | undefined): ChartPreferences["candleUpBorderMode"] | undefined {
+  return input === "body" || input === "custom" || input === "none" ? input : undefined;
+}
+
+function toCandleWickMode(input: string | undefined): ChartPreferences["candleUpWickMode"] | undefined {
+  return input === "body" || input === "custom" ? input : undefined;
 }
 
 function readTraderPrefs(): TraderPrefs {
@@ -286,6 +322,10 @@ export function getChartPreferencesFromStorage(): ChartPreferences {
   // Migrate the old boolean magnet flag to the tri-state when unset.
   result.magnetMode =
     toMagnetMode(prefs.magnetMode) ?? (toBool(prefs.drawingMagnet, false) ? "weak" : "none");
+  result.candleUpBorderMode = toCandleBorderMode(prefs.candleUpBorderMode) ?? "body";
+  result.candleDownBorderMode = toCandleBorderMode(prefs.candleDownBorderMode) ?? "body";
+  result.candleUpWickMode = toCandleWickMode(prefs.candleUpWickMode) ?? "body";
+  result.candleDownWickMode = toCandleWickMode(prefs.candleDownWickMode) ?? "body";
   result.activePlugins = toStringArray(prefs.activePlugins, DEFAULT_CHART_PREFS.activePlugins);
   return result;
 }
