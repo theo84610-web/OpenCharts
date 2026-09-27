@@ -1612,6 +1612,7 @@ export function ChartPanel({
       intervalSec: (TF_INTERVAL_MS[timeframeRef.current] ?? 60_000) / 1000,
       timeframe: timeframeRef.current,
       accountEquity: accountEquityRef.current,
+      normalCrosshairColor: colors.crosshair,
       callbacks: {
         onAdd: (d) => onAddDrawingRef.current(d),
         onUpdate: (d) => onUpdateDrawingRef.current?.(d),

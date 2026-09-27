@@ -11,14 +11,11 @@ import { hitTest } from "./hit-test";
 import { makeResolveCtx, type ResolveCtx, resolveEntry, timeToX, xToTime } from "./resolve";
 import type { DataPoint, DrawingCallbacks, Hit, ResolvedEntry } from "./types";
 
-// Releasing the pointer farther than this from the first anchor commits the
-// drawing in one press-drag-release gesture (otherwise we wait for a second
-// click), mirroring TradingView's dual placement modes.
-const DRAG_COMMIT_THRESHOLD_PX = 10;
-
 // Magnet mode: snap an anchor's price to the nearest O/H/L/C of the bar under
 // the cursor when within this many pixels (TradingView's "weak magnet").
 const MAGNET_THRESHOLD_PX = 14;
+const TOUCH_TAP_THRESHOLD_PX = 9;
+const DRAWING_CROSSHAIR_COLOR = "#3b82f6";
 
 // Object snapping: snap a placed/dragged anchor onto another drawing's anchor
 // when the cursor is within this many pixels of it.
@@ -103,8 +100,14 @@ interface DragState {
 
 interface PlacingState {
   p1: DataPoint;
+}
+
+interface TouchGesture {
   startX: number;
   startY: number;
+  crosshairX: number;
+  crosshairY: number;
+  moved: boolean;
 }
 
 export interface DrawingToolsManagerOptions {
@@ -117,14 +120,16 @@ export interface DrawingToolsManagerOptions {
   timeframe: string;
   /** Account equity — drives the position tool's $-risk / size readout. */
   accountEquity?: number;
+  /** Normal chart crosshair color restored after drawing mode ends. */
+  normalCrosshairColor: string;
   callbacks: DrawingCallbacks;
 }
 
 /**
  * TradingView-style interaction layer for chart drawings.
  *
- * Placement: arm a tool, then click-move-click or press-drag-release with a
- * live preview. Editing: hover highlights, drag anchors or bodies (Shift =
+ * Placement: arm a tool, then tap/click once, move for a live preview, and
+ * tap/click again to commit. Editing: hover highlights, drag anchors or bodies (Shift =
  * 45° snap, magnet = OHLC snap), shift-click multi-selects and body drags
  * move the whole group, Delete removes the selection, Escape cancels. Touch
  * gets scaled hit targets, drag support, and long-press for settings.
@@ -151,6 +156,9 @@ export class DrawingToolsManager {
   private hoveredId: string | null = null;
   private magnetMode: MagnetMode = "none";
   private stayInMode = false;
+  private readonly normalCrosshairColor: string;
+  private crosshairPosition: Pt | null = null;
+  private touchGesture: TouchGesture | null = null;
   private longPress: { timer: number; id: string; startPos: Pt } | null = null;
   // The measure tool is a throwaway gesture: its result lingers as a preview
   // (never committed/persisted) until the next pointer-down or Escape.
@@ -167,6 +175,7 @@ export class DrawingToolsManager {
     this.cb = opts.callbacks;
     this.intervalSec = opts.intervalSec;
     this.timeframe = opts.timeframe;
+    this.normalCrosshairColor = opts.normalCrosshairColor;
     this.primitive = new DrawingsPrimitive();
     this.primitive.setIntervalSec(opts.intervalSec);
     this.primitive.setAccountEquity(opts.accountEquity ?? 0);
@@ -210,6 +219,13 @@ export class DrawingToolsManager {
     if (this.tool === tool) return;
     this.tool = tool;
     this.cancelPlacement();
+    this.touchGesture = null;
+    if (tool === "none") {
+      this.clearCrosshairPosition();
+    } else {
+      this.centerCrosshairPosition();
+    }
+    this.updateCrosshairAppearance();
     this.applyCursor(null);
   }
 
@@ -353,6 +369,7 @@ export class DrawingToolsManager {
     if (!pos) return;
     this.clearMeasure();
     if (this.tool !== "none") {
+      this.setCrosshairPosition(pos);
       this.placementStart(pos, e);
       return;
     }
@@ -369,6 +386,7 @@ export class DrawingToolsManager {
       this.hoverHit(null);
       return;
     }
+    if (this.tool !== "none") this.setCrosshairPosition(pos);
     if (this.placing) {
       this.placingMove(pos, e.shiftKey);
       return;
@@ -376,12 +394,11 @@ export class DrawingToolsManager {
     if (this.tool === "none") this.hoverHit(hitTest(this.resolveAll(), pos));
   };
 
-  private handleMouseUp = (e: MouseEvent): void => {
+  private handleMouseUp = (): void => {
     if (this.drag) {
       this.endDrag();
       return;
     }
-    if (this.placing) this.maybeCommitPlacement(this.eventPos(e), e.shiftKey);
   };
 
   private handleDblClick = (e: MouseEvent): void => {
@@ -410,40 +427,80 @@ export class DrawingToolsManager {
   // ── Touch handlers ─────────────────────────────────────────────────
 
   private handleTouchStart = (e: TouchEvent): void => {
-    if (e.touches.length !== 1) return; // pinch / two-finger → chart
-    const t = e.touches[0]!;
-    const pos = this.posFromClient(t.clientX, t.clientY);
-    if (!pos) return;
-    if (this.tool !== "none") {
-      this.placementStart(pos, evtFromTouch(e));
+    if (e.touches.length !== 1) {
+      if (this.tool !== "none") {
+        e.preventDefault();
+        e.stopPropagation();
+        this.touchGesture = null;
+      }
       return;
     }
+    const t = e.touches[0]!;
+    if (this.tool !== "none") {
+      if (!this.crosshairPosition) this.centerCrosshairPosition();
+      const position = this.crosshairPosition;
+      if (!position) return;
+      e.preventDefault();
+      e.stopPropagation();
+      this.touchGesture = {
+        startX: t.clientX,
+        startY: t.clientY,
+        crosshairX: position.x,
+        crosshairY: position.y,
+        moved: false,
+      };
+      return;
+    }
+    const pos = this.posFromClient(t.clientX, t.clientY);
+    if (!pos) return;
     const hit = this.selectionStart(pos, evtFromTouch(e), true);
     if (hit) this.startLongPress(hit.id, pos);
   };
 
   private handleTouchMove = (e: TouchEvent): void => {
-    if (e.touches.length !== 1) return;
+    if (e.touches.length !== 1) {
+      if (this.tool !== "none") e.preventDefault();
+      return;
+    }
     const t = e.touches[0]!;
     const pos = this.posFromClient(t.clientX, t.clientY);
     this.cancelLongPressIfMoved(pos);
+    if (this.tool !== "none" && this.touchGesture) {
+      e.preventDefault();
+      const gesture = this.touchGesture;
+      const dx = t.clientX - gesture.startX;
+      const dy = t.clientY - gesture.startY;
+      if (Math.hypot(dx, dy) >= TOUCH_TAP_THRESHOLD_PX) gesture.moved = true;
+      this.setCrosshairPosition({ x: gesture.crosshairX + dx, y: gesture.crosshairY + dy });
+      if (this.placing && this.crosshairPosition) this.placingMove(this.crosshairPosition, false);
+      return;
+    }
     if (this.drag) {
       e.preventDefault(); // keep the page/chart from scrolling mid-drag
       if (pos) this.dragMove(pos, false);
       return;
     }
-    if (this.placing && pos) this.placingMove(pos, false);
+    if (this.placing && pos) {
+      e.preventDefault();
+      this.placingMove(pos, false);
+    }
   };
 
-  private handleTouchEnd = (e: TouchEvent): void => {
+  private handleTouchEnd = (): void => {
     this.clearLongPress();
+    const gesture = this.touchGesture;
+    this.touchGesture = null;
     if (this.drag) {
       this.endDrag();
       return;
     }
-    if (!this.placing) return;
-    const t = e.changedTouches[0];
-    this.maybeCommitPlacement(t ? this.posFromClient(t.clientX, t.clientY) : null, false);
+    if (this.tool !== "none" && gesture && !gesture.moved && this.crosshairPosition) {
+      this.placementStart(this.crosshairPosition, {
+        shiftKey: false,
+        preventDefault: () => undefined,
+        stopPropagation: () => undefined,
+      });
+    }
   };
 
   private startLongPress(id: string, pos: Pt): void {
@@ -600,6 +657,8 @@ export class DrawingToolsManager {
     if (this.tool !== "none") {
       this.tool = "none";
       this.cancelPlacement();
+      this.clearCrosshairPosition();
+      this.updateCrosshairAppearance();
       this.applyCursor(null);
       this.cb.onToolFinished();
       return;
@@ -623,7 +682,7 @@ export class DrawingToolsManager {
       this.commitPlacement(this.placing.p1, pt);
       return;
     }
-    this.placing = { p1: pt, startX: pos.x, startY: pos.y };
+    this.placing = { p1: pt };
     this.primitive.setPreview(this.makeNew(this.tool, pt, pt));
   }
 
@@ -650,6 +709,8 @@ export class DrawingToolsManager {
     };
     this.primitive.setPreview(this.measureResult);
     this.tool = "none";
+    this.clearCrosshairPosition();
+    this.updateCrosshairAppearance();
     this.applyCursor(null);
     this.cb.onToolFinished();
   }
@@ -666,15 +727,6 @@ export class DrawingToolsManager {
     this.primitive.setPreview(this.makeNew(this.tool, this.placing.p1, pt));
   }
 
-  private maybeCommitPlacement(pos: Pt | null, shiftKey: boolean): void {
-    const placing = this.placing!;
-    if (!pos || dist(pos, { x: placing.startX, y: placing.startY }) < DRAG_COMMIT_THRESHOLD_PX) {
-      return;
-    }
-    const pt = this.pointFor(pos, shiftKey, this.placementAnchorPx());
-    if (pt) this.commitPlacement(placing.p1, pt);
-  }
-
   private commitDrawing(d: DrawingLine): void {
     this.placing = null;
     this.primitive.setPreview(null);
@@ -684,6 +736,8 @@ export class DrawingToolsManager {
     if (this.stayInMode && this.tool !== "none") return; // keep tool armed
     this.select([d.id]);
     this.tool = "none";
+    this.clearCrosshairPosition();
+    this.updateCrosshairAppearance();
     this.applyCursor(null);
     this.cb.onToolFinished();
   }
@@ -691,6 +745,44 @@ export class DrawingToolsManager {
   private cancelPlacement(): void {
     this.placing = null;
     this.primitive.setPreview(null);
+  }
+
+  private setCrosshairPosition(pos: Pt): void {
+    const timeScale = this.chart.timeScale();
+    const paneWidth = timeScale.width();
+    const paneHeight = this.container.getBoundingClientRect().height - timeScale.height();
+    if (paneWidth <= 0 || paneHeight <= 0) return;
+    const clamped = {
+      x: Math.max(0, Math.min(paneWidth, pos.x)),
+      y: Math.max(0, Math.min(paneHeight, pos.y)),
+    };
+    const pt = this.toPoint(clamped);
+    if (!pt) return;
+    this.crosshairPosition = clamped;
+    this.chart.setCrosshairPosition(pt.price, pt.time, this.series);
+  }
+
+  private clearCrosshairPosition(): void {
+    this.crosshairPosition = null;
+    this.chart.clearCrosshairPosition();
+  }
+
+  private centerCrosshairPosition(): void {
+    const timeScale = this.chart.timeScale();
+    const paneWidth = timeScale.width();
+    const paneHeight = this.container.getBoundingClientRect().height - timeScale.height();
+    if (paneWidth <= 0 || paneHeight <= 0) return;
+    this.setCrosshairPosition({ x: paneWidth / 2, y: paneHeight / 2 });
+  }
+
+  private updateCrosshairAppearance(): void {
+    const color = this.tool === "none" ? this.normalCrosshairColor : DRAWING_CROSSHAIR_COLOR;
+    this.chart.applyOptions({
+      crosshair: {
+        vertLine: { color },
+        horzLine: { color },
+      },
+    });
   }
 
   // ── Selection & dragging ───────────────────────────────────────────
