@@ -1,3 +1,4 @@
+import { ConnectionIndicator } from "../../components/ConnectionIndicator.tsx";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import {
@@ -961,6 +962,7 @@ function ChartLegendHeader({
         <span className="text-foreground font-bold text-[13px] tracking-tight">
           {selectedSymbol}
         </span>
+        <ConnectionIndicator compact />
         <span className="text-muted-foreground font-medium">{timeframe}</span>
         {legend && showOhlcLegend && <OhlcvLegendRow legend={legend} pipDigits={pipDigits} />}
         {countdown && showCountdown && (

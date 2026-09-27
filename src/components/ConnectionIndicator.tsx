@@ -3,7 +3,7 @@ import { useState, useEffect, useSyncExternalStore } from "react";
 import { wsClient, type ConnectionState } from "@/services/ws";
 import { useMarketDataHealth } from "@/services/queries";
 import { cn } from "@/lib/utils";
-import { Wifi, WifiOff, Loader2 } from "lucide-react";
+import { Wifi, WifiOff } from "lucide-react";
 
 interface MarketDataHealthSnapshot {
   adapter?: {
@@ -87,13 +87,13 @@ const stateConfig = {
   },
   connecting: {
     label: "Connecting...",
-    icon: Loader2,
+    icon: Wifi,
     color: "text-warning",
     dot: "bg-warning",
   },
   reconnecting: {
     label: "Reconnecting...",
-    icon: Loader2,
+    icon: Wifi,
     color: "text-warning",
     dot: "bg-warning",
   },
@@ -105,10 +105,41 @@ const stateConfig = {
   },
 } as const;
 
-export function ConnectionIndicator({ className }: { className?: string }) {
+export function ConnectionIndicator({
+  className,
+  compact = false,
+}: {
+  className?: string;
+  compact?: boolean;
+}) {
   const state = useConnectionState();
   const { label, icon: Icon, color, dot } = stateConfig[state];
   const isSpinning = state === "connecting" || state === "reconnecting";
+  const [showCompactLabel, setShowCompactLabel] = useState(false);
+
+  if (compact) {
+    return (
+      <span className={cn("group relative pointer-events-auto inline-flex", className)}>
+        <button
+          type="button"
+          aria-label={label}
+          title={label}
+          onClick={() => setShowCompactLabel((visible) => !visible)}
+          className="rounded p-0.5 hover:bg-secondary/80 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+        >
+          <Icon className={cn("h-3.5 w-3.5", color, isSpinning && "animate-pulse")} />
+        </button>
+        <span
+          className={cn(
+            "pointer-events-none absolute left-1/2 top-full z-20 mt-1 -translate-x-1/2 whitespace-nowrap rounded border border-border bg-card px-1.5 py-1 text-[10px] font-sans text-foreground shadow",
+            showCompactLabel ? "block" : "hidden",
+          )}
+        >
+          {label}
+        </span>
+      </span>
+    );
+  }
 
   return (
     <div className={cn("flex items-center gap-1.5 text-[11px]", className)} title={label}>

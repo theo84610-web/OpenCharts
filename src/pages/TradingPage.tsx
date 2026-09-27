@@ -1,9 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  ConnectionIndicator,
-  useIsFeedConnected,
-} from "../components/ConnectionIndicator.tsx";
+import { useIsFeedConnected } from "../components/ConnectionIndicator.tsx";
 import { MobileAccountBar, MobileTradingPanel } from "../components/MobileTradingPanel.tsx";
 import {
   OrderConfirmDialog,
@@ -550,11 +547,6 @@ export function TradingPage() {
         }
       />
 
-      {!isReplaying && (
-        <div className="flex h-6 shrink-0 items-center border-b border-border bg-background px-3">
-          <ConnectionIndicator />
-        </div>
-      )}
       <MarketClosedBanner symbolInfo={symbolInfo} />
 
       {/* ── Main Layout ──────────────────────────────────── */}
