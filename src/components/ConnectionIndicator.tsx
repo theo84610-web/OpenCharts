@@ -4,6 +4,11 @@ import { wsClient, type ConnectionState } from "@/services/ws";
 import { useMarketDataHealth } from "@/services/queries";
 import { cn } from "@/lib/utils";
 import { Wifi, WifiOff, Loader2 } from "lucide-react";
+import {
+  getOandaDiagnosticSnapshot,
+  oandaDebugEnvironment,
+  subscribeToOandaDiagnostics,
+} from "@/services/oanda-diagnostics";
 
 interface MarketDataHealthSnapshot {
   adapter?: {
@@ -117,6 +122,39 @@ export function ConnectionIndicator({ className }: { className?: string }) {
       />
       <Icon className={cn("h-3 w-3", color, isSpinning && "animate-spin")} />
       <span className={cn("inline", color)}>{label}</span>
+    </div>
+  );
+}
+
+const SHOW_OANDA_DIAGNOSTICS = true;
+
+export function OandaDiagnosticsBanner() {
+  const diagnostics = useSyncExternalStore(
+    subscribeToOandaDiagnostics,
+    getOandaDiagnosticSnapshot,
+  );
+  if (!SHOW_OANDA_DIAGNOSTICS) return null;
+
+  const errors = [
+    diagnostics.restError && `REST: ${diagnostics.restError}`,
+    diagnostics.streamError && `Stream: ${diagnostics.streamError}`,
+  ].filter(Boolean);
+
+  return (
+    <div className="shrink-0 border-b border-warning/40 bg-warning/10 px-3 py-2 text-xs text-foreground">
+      <div className="font-semibold">Temporary OANDA diagnostics</div>
+      <div>
+        VITE_OANDA_API_KEY: {oandaDebugEnvironment.apiKeyDefined ? "SET" : "MISSING"}
+        {" | "}
+        VITE_OANDA_ACCOUNT_ID: {oandaDebugEnvironment.accountIdDefined ? "SET" : "MISSING"}
+      </div>
+      {errors.length > 0 ? (
+        <div className="mt-1 max-h-24 overflow-auto whitespace-pre-wrap break-words text-destructive">
+          {errors.map((error) => <div key={error}>{error}</div>)}
+        </div>
+      ) : (
+        <div className="mt-1 text-muted-foreground">No OANDA errors captured.</div>
+      )}
     </div>
   );
 }

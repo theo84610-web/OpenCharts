@@ -1,6 +1,8 @@
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {
+  readonly VITE_OANDA_API_KEY?: string;
+  readonly VITE_OANDA_ACCOUNT_ID?: string;
   readonly OANDA_API_KEY?: string;
   readonly OANDA_ACCOUNT_ID?: string;
 }

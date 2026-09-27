@@ -1,6 +1,10 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ConnectionIndicator, useIsFeedConnected } from "../components/ConnectionIndicator.tsx";
+import {
+  ConnectionIndicator,
+  OandaDiagnosticsBanner,
+  useIsFeedConnected,
+} from "../components/ConnectionIndicator.tsx";
 import { MobileAccountBar, MobileTradingPanel } from "../components/MobileTradingPanel.tsx";
 import {
   OrderConfirmDialog,
@@ -552,6 +556,7 @@ export function TradingPage() {
           <ConnectionIndicator />
         </div>
       )}
+      <OandaDiagnosticsBanner />
 
       <MarketClosedBanner symbolInfo={symbolInfo} />
 

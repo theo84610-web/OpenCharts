@@ -1,6 +1,12 @@
 /** OANDA pricing stream client plus the local paper-trading event bus. */
 import { mark } from "./demo/engine.ts";
 import { publish, subscribeChannel, type ChannelHandler } from "./demo/bus.ts";
+import {
+  clearOandaError,
+  getOandaAccountId,
+  getOandaApiKey,
+  reportOandaError,
+} from "./oanda-diagnostics.ts";
 
 export type ConnectionState = "connected" | "connecting" | "reconnecting" | "disconnected";
 export type WsHandler = ChannelHandler;
@@ -118,10 +124,14 @@ class OandaWsClient {
       this.setState("disconnected");
       return;
     }
-    const apiKey = import.meta.env.OANDA_API_KEY;
-    const accountId = import.meta.env.OANDA_ACCOUNT_ID;
+    const apiKey = getOandaApiKey();
+    const accountId = getOandaAccountId();
     if (!apiKey || !accountId) {
       this.controller = null;
+      reportOandaError(
+        "STREAM",
+        new Error(!apiKey ? "OANDA_API_KEY is not configured" : "OANDA_ACCOUNT_ID is not configured"),
+      );
       this.setState("disconnected");
       return;
     }
@@ -227,7 +237,12 @@ class OandaWsClient {
         } finally {
           clearTimeout(connectTimeout);
         }
-        if (!response.ok) throw new Error(`OANDA stream failed with HTTP ${response.status}`);
+        if (!response.ok) {
+          const body = await response.text();
+          throw new Error(
+            `HTTP ${response.status}${response.statusText ? ` ${response.statusText}` : ""}${body ? `: ${body}` : ""}`,
+          );
+        }
         this.lastStreamActivityAt = Date.now();
         const isReconnect = this.streamEstablished;
         this.streamEstablished = true;
@@ -237,12 +252,16 @@ class OandaWsClient {
         await readPricingStream(response, attempt.signal, () => {
           this.lastStreamActivityAt = Date.now();
           retryDelay = 1_000;
+          clearOandaError("STREAM");
           this.setState("connected");
         }, () => {
           this.lastStreamActivityAt = Date.now();
         });
-      } catch {
-        if (!signal.aborted) attempt.abort();
+      } catch (error) {
+        if (!signal.aborted) {
+          reportOandaError("STREAM", error);
+          attempt.abort();
+        }
       }
       signal.removeEventListener("abort", abortAttempt);
       if (this.attemptController === attempt) this.attemptController = null;
