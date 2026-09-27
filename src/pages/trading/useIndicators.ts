@@ -13,6 +13,10 @@ import {
   INDICATOR_REGISTRY,
   type IndicatorType,
 } from "../../lib/indicators.ts";
+import { SwingStructurePrimitive } from "../../lib/chart-plugins/swing-structure/swing-structure.ts";
+import { EngulfingZonesPrimitive } from "../../lib/chart-plugins/engulfing-zones/engulfing-zones.ts";
+import type { EngulfingZonesSettings } from "../../lib/engulfing-zones.ts";
+import type { SwingStructureSettings } from "../../lib/swing-structure.ts";
 import { toIndicatorCandles } from "./utils.ts";
 import { CHART_COLORS } from "./constants.ts";
 
@@ -22,16 +26,39 @@ export function useIndicators(
   chartData: CandlestickData<Time>[],
   activeIndicators: IndicatorType[],
   isDark: boolean,
+  swingSettings: SwingStructureSettings,
+  engulfingSettings: EngulfingZonesSettings,
+  resetKey: string,
 ): void {
   const indicatorSeriesRef = useRef<Map<string, ISeriesApi<"Line"> | ISeriesApi<"Histogram">>>(
     new Map(),
   );
+  const swingPrimitiveRef = useRef<SwingStructurePrimitive | null>(null);
+  const engulfingPrimitiveRef = useRef<EngulfingZonesPrimitive | null>(null);
   const colors = isDark ? CHART_COLORS.dark : CHART_COLORS.light;
 
   useEffect(() => {
-    if (!chartRef.current || !candleSeriesRef.current || chartData.length === 0) return;
+    if (!chartRef.current || !candleSeriesRef.current) return;
 
     const chart = chartRef.current;
+    const candleSeries = candleSeriesRef.current;
+    if (engulfingPrimitiveRef.current) {
+      try {
+        candleSeries.detachPrimitive(engulfingPrimitiveRef.current);
+      } catch {
+        /* already detached */
+      }
+      engulfingPrimitiveRef.current = null;
+    }
+    if (swingPrimitiveRef.current) {
+      try {
+        candleSeries.detachPrimitive(swingPrimitiveRef.current);
+      } catch {
+        /* already detached */
+      }
+      swingPrimitiveRef.current = null;
+    }
+
     const indCandles = toIndicatorCandles(chartData);
 
     // Remove old indicator series
@@ -43,6 +70,7 @@ export function useIndicators(
       }
     }
     indicatorSeriesRef.current.clear();
+    if (chartData.length === 0) return;
 
     for (const type of activeIndicators) {
       const config = INDICATOR_REGISTRY.find((r) => r.type === type);
@@ -196,9 +224,50 @@ export function useIndicators(
           indicatorSeriesRef.current.set("VWAP", s);
           break;
         }
+        case "SWING": {
+          const primitive = new SwingStructurePrimitive();
+          candleSeries.attachPrimitive(primitive);
+          primitive.setSettings({
+            lookbackBars: swingSettings.lookbackBars,
+            color: swingSettings.lineColor,
+            lineWidth: swingSettings.lineWidth,
+            showLabels: swingSettings.showLabels,
+            showFormingLeg: swingSettings.showFormingLeg,
+            highLabelColor: swingSettings.highLabelColor,
+            lowLabelColor: swingSettings.lowLabelColor,
+          });
+          swingPrimitiveRef.current = primitive;
+          break;
+        }
+        case "ENGULF": {
+          const primitive = new EngulfingZonesPrimitive();
+          candleSeries.attachPrimitive(primitive);
+          primitive.setSettings(engulfingSettings);
+          engulfingPrimitiveRef.current = primitive;
+          break;
+        }
       }
     }
     // chartRef/candleSeriesRef are stable refs; colors derived from isDark dep.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeIndicators, chartData, isDark]);
+  }, [
+    activeIndicators,
+    chartData,
+    isDark,
+    resetKey,
+    swingSettings.lookbackBars,
+    swingSettings.lineColor,
+    swingSettings.lineWidth,
+    swingSettings.showLabels,
+    swingSettings.showFormingLeg,
+    swingSettings.highLabelColor,
+    swingSettings.lowLabelColor,
+    engulfingSettings.lookbackBars,
+    engulfingSettings.maxPullbackBars,
+    engulfingSettings.maxActiveSetups,
+    engulfingSettings.bullishFillColor,
+    engulfingSettings.bullishBorderColor,
+    engulfingSettings.bearishFillColor,
+    engulfingSettings.bearishBorderColor,
+  ]);
 }

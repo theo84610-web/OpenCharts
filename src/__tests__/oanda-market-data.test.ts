@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { api } from "../services/api.ts";
+import { TIMEFRAMES } from "../pages/trading/constants.ts";
 import { wsClient } from "../services/ws.ts";
 
 afterEach(() => {
@@ -9,6 +10,26 @@ afterEach(() => {
 });
 
 describe("OANDA market data", () => {
+  it.each([
+    ["2m", "M2"],
+    ["3m", "M3"],
+  ])("requests %s candles with OANDA granularity %s", async (timeframe, granularity) => {
+    vi.stubEnv("OANDA_API_KEY", "practice-key");
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ candles: [] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await api.getCandles("XAU_USD", timeframe, 10);
+
+    const [url] = fetchMock.mock.calls[0]!;
+    expect(new URL(String(url)).searchParams.get("granularity")).toBe(granularity);
+    expect(TIMEFRAMES.slice(2, 5)).toEqual(["1m", "2m", "3m"]);
+  });
+
   it("exposes only XAU_USD as an active instrument", async () => {
     await expect(api.getSymbols()).resolves.toMatchObject([
       { id: "XAU_USD", name: "XAU_USD", displayName: "Gold / USD", tickSize: 0.01 },
@@ -39,6 +60,9 @@ describe("OANDA market data", () => {
     const [url, options] = fetchMock.mock.calls[0]!;
     expect(String(url)).toContain("/v3/instruments/XAU_USD/candles?");
     expect(String(url)).toContain("granularity=S15");
+    const query = new URL(String(url)).searchParams;
+    expect(query.get("dailyAlignment")).toBe("18");
+    expect(query.get("alignmentTimezone")).toBe("America/New_York");
     expect(String(url)).toContain("count=10");
     expect(String(url)).toContain("price=M");
     expect(options).toMatchObject({ headers: { Authorization: "Bearer practice-key" } });

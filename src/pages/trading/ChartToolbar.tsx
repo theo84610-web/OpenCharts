@@ -27,6 +27,7 @@ import {
   Repeat,
   Ruler,
   Search,
+  Settings2,
   SlidersHorizontal,
   Spline,
   Square,
@@ -39,7 +40,9 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { INDICATOR_REGISTRY, type IndicatorType } from "../../lib/indicators.ts";
-import { cn, formatNumber } from "../../lib/utils.ts";
+import type { EngulfingZonesSettings } from "../../lib/engulfing-zones.ts";
+import type { SwingStructureSettings } from "../../lib/swing-structure.ts";
+import { cn } from "../../lib/utils.ts";
 import {
   type DrawingLine,
   type DrawingTool,
@@ -50,7 +53,6 @@ import {
 } from "./constants.ts";
 import { ChartTemplatesMenu } from "./ChartTemplatesMenu.tsx";
 import { ReplayHUD } from "./ReplayHUD.tsx";
-import { getPipDigits } from "./utils.ts";
 
 export interface ChartToolbarProps {
   selectedSymbol: string;
@@ -69,6 +71,10 @@ export interface ChartToolbarProps {
   onTimeframeChange: (tf: Timeframe) => void;
   activeIndicators: IndicatorType[];
   onToggleIndicator: (type: IndicatorType) => void;
+  swingStructureSettings: SwingStructureSettings;
+  onSwingStructureSettingsChange: (patch: Partial<SwingStructureSettings>) => void;
+  engulfingZonesSettings: EngulfingZonesSettings;
+  onEngulfingZonesSettingsChange: (patch: Partial<EngulfingZonesSettings>) => void;
   showIndicatorMenu: boolean;
   onToggleIndicatorMenu: () => void;
   drawingTool: DrawingTool;
@@ -80,18 +86,6 @@ export interface ChartToolbarProps {
   aiTraderEnabled?: boolean;
   showRightPanel: boolean;
   onToggleRightPanel: () => void;
-  tick?: { bid: number; ask: number; timestamp: number };
-  symbolInfo?: {
-    tickSize?: number;
-    pipSize?: number;
-    lotSize?: number;
-    minLot?: number;
-    maxLot?: number;
-    lotStep?: number;
-    contractSize?: number;
-    marginPercent?: number;
-    commission?: number;
-  };
   isReplaying?: boolean;
   /** Account whose sessions can be replayed — mounts the replay HUD when set. */
   replayAccountId?: string | null;
@@ -115,6 +109,10 @@ export function ChartToolbar({
   onTimeframeChange,
   activeIndicators,
   onToggleIndicator,
+  swingStructureSettings,
+  onSwingStructureSettingsChange,
+  engulfingZonesSettings,
+  onEngulfingZonesSettingsChange,
   showIndicatorMenu,
   onToggleIndicatorMenu,
   drawingTool,
@@ -125,8 +123,6 @@ export function ChartToolbar({
   onRightPanel,
   showRightPanel,
   onToggleRightPanel,
-  tick,
-  symbolInfo,
   aiTraderEnabled,
   isReplaying = false,
   replayAccountId,
@@ -141,19 +137,14 @@ export function ChartToolbar({
 }: ChartToolbarProps) {
   const [showSymbolSearch, setShowSymbolSearch] = useState(false);
   const [symbolFilter, setSymbolFilter] = useState("");
+  const [showSwingSettings, setShowSwingSettings] = useState(false);
+  const [showEngulfingSettings, setShowEngulfingSettings] = useState(false);
 
   const filteredSymbols = symbols.filter(
     (s) =>
       s.name.toLowerCase().includes(symbolFilter.toLowerCase()) ||
       (s.category || "").toLowerCase().includes(symbolFilter.toLowerCase()),
   );
-
-  // Spread in pips/points: (ask - bid) / pipSize. Previously this multiplied
-  // by contractSize which produced a meaningless quote-currency-per-lot number
-  // (e.g. 9 pips on GBPJPY rendered as "900").
-  const spread = tick
-    ? ((tick.ask - tick.bid) * 10 ** getPipDigits(symbolInfo, selectedSymbol)).toFixed(1)
-    : "--";
 
   return (
     <div className="flex items-center gap-1 px-2 py-1 border-b border-border bg-card text-xs shrink-0 overflow-x-auto md:overflow-visible flex-nowrap md:flex-wrap no-scrollbar">
@@ -265,28 +256,6 @@ export function ChartToolbar({
         )}
       </div>
 
-      {/* Live Price — bid / ask badges like TradingView */}
-      {tick && (
-        <div className="flex items-center gap-1 md:gap-1.5 px-1.5 md:px-2 border-l border-r border-border shrink-0">
-          <span className="inline-flex items-center gap-1 px-1 md:px-1.5 py-0.5 rounded bg-[#0ecb81]/15 text-[#0ecb81] font-mono font-bold text-[12px] md:text-[13px] tabular-nums tracking-tight">
-            {formatNumber(
-              tick.bid,
-              symbolInfo?.tickSize ? String(symbolInfo.tickSize).split(".")[1]?.length || 2 : 5,
-            )}
-          </span>
-          <span className="text-muted-foreground text-[10px] font-medium">/</span>
-          <span className="inline-flex items-center gap-1 px-1 md:px-1.5 py-0.5 rounded bg-[#f6465d]/15 text-[#f6465d] font-mono font-bold text-[12px] md:text-[13px] tabular-nums tracking-tight">
-            {formatNumber(
-              tick.ask,
-              symbolInfo?.tickSize ? String(symbolInfo.tickSize).split(".")[1]?.length || 2 : 5,
-            )}
-          </span>
-          <span className="text-muted-foreground text-[10px] font-medium ml-0.5 hidden md:inline">
-            Sprd: {spread}
-          </span>
-        </div>
-      )}
-
       {/* Timeframe Selector — locked to 1m while a replay session is active */}
       <div className="flex items-center gap-0.5 ml-1 shrink-0">
         {TIMEFRAMES.map((tf) => (
@@ -345,23 +314,234 @@ export function ChartToolbar({
           </button>
 
           {showIndicatorMenu && (
-            <div className="absolute top-full left-0 z-50 mt-1 w-64 bg-card border border-border rounded-lg shadow-xl p-2 space-y-0.5">
+            <div className="absolute top-full left-0 z-50 mt-1 max-h-[80vh] w-72 overflow-y-auto bg-card border border-border rounded-lg shadow-xl p-2 space-y-0.5">
               {INDICATOR_REGISTRY.map((ind) => (
-                <button
-                  key={ind.type}
-                  onClick={() => onToggleIndicator(ind.type)}
-                  className={cn(
-                    "w-full flex items-center gap-2 px-2 py-1.5 rounded text-sm hover:bg-secondary text-left",
-                    activeIndicators.includes(ind.type) && "bg-secondary",
+                <div key={ind.type}>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => onToggleIndicator(ind.type)}
+                      className={cn(
+                        "flex min-w-0 flex-1 items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-secondary",
+                        activeIndicators.includes(ind.type) && "bg-secondary",
+                      )}
+                    >
+                      <span
+                        className="h-2 w-2 shrink-0 rounded-full"
+                        style={{ backgroundColor: ind.color }}
+                      />
+                      <span className="flex-1">{ind.label}</span>
+                      <span className="text-[10px] text-muted-foreground">{ind.pane}</span>
+                    </button>
+                    {ind.type === "SWING" && (
+                      <button
+                        type="button"
+                        aria-label="Swing Structure settings"
+                        title="Swing Structure settings"
+                        onClick={() => setShowSwingSettings((visible) => !visible)}
+                        className={cn(
+                          "rounded p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground",
+                          showSwingSettings && "bg-secondary text-foreground",
+                        )}
+                      >
+                        <Settings2 className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                    {ind.type === "ENGULF" && (
+                      <button
+                        type="button"
+                        aria-label="Engulfing Zones settings"
+                        title="Engulfing Zones settings"
+                        onClick={() => setShowEngulfingSettings((visible) => !visible)}
+                        className={cn(
+                          "rounded p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground",
+                          showEngulfingSettings && "bg-secondary text-foreground",
+                        )}
+                      >
+                        <Settings2 className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+                  {ind.type === "SWING" && showSwingSettings && (
+                    <div className="space-y-2 border-t border-border px-2 py-2 text-xs">
+                      <label className="flex items-center justify-between gap-3">
+                        <span>Lookback bars</span>
+                        <input
+                          type="number"
+                          min={1}
+                          max={10000}
+                          value={swingStructureSettings.lookbackBars}
+                          onChange={(event) =>
+                            onSwingStructureSettingsChange({
+                              lookbackBars: Math.min(10000, Math.max(1, Number(event.target.value) || 1)),
+                            })
+                          }
+                          className="w-20 rounded border border-border bg-background px-1.5 py-1 text-right"
+                        />
+                      </label>
+                      <label className="flex items-center justify-between gap-3">
+                        <span>Line color</span>
+                        <input
+                          type="color"
+                          value={swingStructureSettings.lineColor}
+                          onChange={(event) =>
+                            onSwingStructureSettingsChange({ lineColor: event.target.value })
+                          }
+                          className="h-6 w-9 cursor-pointer rounded border border-border bg-transparent p-0"
+                        />
+                      </label>
+                      <label className="flex items-center justify-between gap-3">
+                        <span>Line width</span>
+                        <input
+                          type="number"
+                          min={1}
+                          max={5}
+                          value={swingStructureSettings.lineWidth}
+                          onChange={(event) =>
+                            onSwingStructureSettingsChange({
+                              lineWidth: Math.min(5, Math.max(1, Number(event.target.value) || 1)),
+                            })
+                          }
+                          className="w-20 rounded border border-border bg-background px-1.5 py-1 text-right"
+                        />
+                      </label>
+                      <label className="flex items-center justify-between gap-3">
+                        <span>Show labels</span>
+                        <input
+                          type="checkbox"
+                          checked={swingStructureSettings.showLabels}
+                          onChange={(event) =>
+                            onSwingStructureSettingsChange({ showLabels: event.target.checked })
+                          }
+                        />
+                      </label>
+                      <label className="flex items-center justify-between gap-3">
+                        <span>Show forming leg</span>
+                        <input
+                          type="checkbox"
+                          checked={swingStructureSettings.showFormingLeg}
+                          onChange={(event) =>
+                            onSwingStructureSettingsChange({ showFormingLeg: event.target.checked })
+                          }
+                        />
+                      </label>
+                      <label className="flex items-center justify-between gap-3">
+                        <span>High label color</span>
+                        <input
+                          type="color"
+                          value={swingStructureSettings.highLabelColor}
+                          onChange={(event) =>
+                            onSwingStructureSettingsChange({ highLabelColor: event.target.value })
+                          }
+                          className="h-6 w-9 cursor-pointer rounded border border-border bg-transparent p-0"
+                        />
+                      </label>
+                      <label className="flex items-center justify-between gap-3">
+                        <span>Low label color</span>
+                        <input
+                          type="color"
+                          value={swingStructureSettings.lowLabelColor}
+                          onChange={(event) =>
+                            onSwingStructureSettingsChange({ lowLabelColor: event.target.value })
+                          }
+                          className="h-6 w-9 cursor-pointer rounded border border-border bg-transparent p-0"
+                        />
+                      </label>
+                    </div>
                   )}
-                >
-                  <span
-                    className="w-2 h-2 rounded-full shrink-0"
-                    style={{ backgroundColor: ind.color }}
-                  />
-                  <span className="flex-1">{ind.label}</span>
-                  <span className="text-[10px] text-muted-foreground">{ind.pane}</span>
-                </button>
+                  {ind.type === "ENGULF" && showEngulfingSettings && (
+                    <div className="space-y-2 border-t border-border px-2 py-2 text-xs">
+                      <label className="flex items-center justify-between gap-3">
+                        <span>Lookback bars</span>
+                        <input
+                          type="number"
+                          min={1}
+                          max={10000}
+                          value={engulfingZonesSettings.lookbackBars}
+                          onChange={(event) =>
+                            onEngulfingZonesSettingsChange({
+                              lookbackBars: Math.min(10000, Math.max(1, Number(event.target.value) || 1)),
+                            })
+                          }
+                          className="w-20 rounded border border-border bg-background px-1.5 py-1 text-right"
+                        />
+                      </label>
+                      <label className="flex items-center justify-between gap-3">
+                        <span>Max pullback bars</span>
+                        <input
+                          type="number"
+                          min={1}
+                          max={10000}
+                          value={engulfingZonesSettings.maxPullbackBars}
+                          onChange={(event) =>
+                            onEngulfingZonesSettingsChange({
+                              maxPullbackBars: Math.min(10000, Math.max(1, Number(event.target.value) || 1)),
+                            })
+                          }
+                          className="w-20 rounded border border-border bg-background px-1.5 py-1 text-right"
+                        />
+                      </label>
+                      <label className="flex items-center justify-between gap-3">
+                        <span>Max active setups</span>
+                        <input
+                          type="number"
+                          min={1}
+                          max={500}
+                          value={engulfingZonesSettings.maxActiveSetups}
+                          onChange={(event) =>
+                            onEngulfingZonesSettingsChange({
+                              maxActiveSetups: Math.min(500, Math.max(1, Number(event.target.value) || 1)),
+                            })
+                          }
+                          className="w-20 rounded border border-border bg-background px-1.5 py-1 text-right"
+                        />
+                      </label>
+                      <label className="flex items-center justify-between gap-3">
+                        <span>Bullish zone fill</span>
+                        <input
+                          type="color"
+                          value={engulfingZonesSettings.bullishFillColor}
+                          onChange={(event) =>
+                            onEngulfingZonesSettingsChange({ bullishFillColor: event.target.value })
+                          }
+                          className="h-6 w-9 cursor-pointer rounded border border-border bg-transparent p-0"
+                        />
+                      </label>
+                      <label className="flex items-center justify-between gap-3">
+                        <span>Bullish zone border</span>
+                        <input
+                          type="color"
+                          value={engulfingZonesSettings.bullishBorderColor}
+                          onChange={(event) =>
+                            onEngulfingZonesSettingsChange({ bullishBorderColor: event.target.value })
+                          }
+                          className="h-6 w-9 cursor-pointer rounded border border-border bg-transparent p-0"
+                        />
+                      </label>
+                      <label className="flex items-center justify-between gap-3">
+                        <span>Bearish zone fill</span>
+                        <input
+                          type="color"
+                          value={engulfingZonesSettings.bearishFillColor}
+                          onChange={(event) =>
+                            onEngulfingZonesSettingsChange({ bearishFillColor: event.target.value })
+                          }
+                          className="h-6 w-9 cursor-pointer rounded border border-border bg-transparent p-0"
+                        />
+                      </label>
+                      <label className="flex items-center justify-between gap-3">
+                        <span>Bearish zone border</span>
+                        <input
+                          type="color"
+                          value={engulfingZonesSettings.bearishBorderColor}
+                          onChange={(event) =>
+                            onEngulfingZonesSettingsChange({ bearishBorderColor: event.target.value })
+                          }
+                          className="h-6 w-9 cursor-pointer rounded border border-border bg-transparent p-0"
+                        />
+                      </label>
+                    </div>
+                  )}
+                </div>
               ))}
             </div>
           )}

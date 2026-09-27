@@ -24,6 +24,8 @@ const OANDA_GRANULARITY: Record<Timeframe, string> = {
   "15s": "S15",
   "30s": "S30",
   "1m": "M1",
+  "2m": "M2",
+  "3m": "M3",
   "5m": "M5",
   "15m": "M15",
   "30m": "M30",
@@ -77,6 +79,8 @@ export async function getCandles(
 
   const params = new URLSearchParams({
     granularity: OANDA_GRANULARITY[timeframe as Timeframe],
+    dailyAlignment: "18",
+    alignmentTimezone: "America/New_York",
     price: "M",
   });
   if (range) {

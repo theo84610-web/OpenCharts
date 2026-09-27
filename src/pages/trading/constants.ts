@@ -1,6 +1,19 @@
 // ── Trading Page Constants ────────────────────────────────────────────────────
 
-export const TIMEFRAMES = ["15s", "30s", "1m", "5m", "15m", "30m", "1h", "4h", "1d", "1w"] as const;
+export const TIMEFRAMES = [
+  "15s",
+  "30s",
+  "1m",
+  "2m",
+  "3m",
+  "5m",
+  "15m",
+  "30m",
+  "1h",
+  "4h",
+  "1d",
+  "1w",
+] as const;
 export type Timeframe = (typeof TIMEFRAMES)[number];
 
 /**
@@ -226,6 +239,8 @@ export const TF_INTERVAL_MS: Record<Timeframe, number> = {
   "15s": 15_000,
   "30s": 30_000,
   "1m": 60_000,
+  "2m": 2 * 60_000,
+  "3m": 3 * 60_000,
   "5m": 5 * 60_000,
   "15m": 15 * 60_000,
   "30m": 30 * 60_000,

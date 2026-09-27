@@ -1,4 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
+import { Loader2 } from "lucide-react";
 import {
   type CandlestickData,
   ColorType,
@@ -38,6 +39,8 @@ import { SessionBreaks } from "../../lib/chart-plugins/session-breaks/session-br
 import { SessionHighlighting } from "../../lib/chart-plugins/session-highlighting/session-highlighting.ts";
 import { TooltipPrimitive } from "../../lib/chart-plugins/tooltip/tooltip.ts";
 import type { IndicatorType } from "../../lib/indicators.ts";
+import type { EngulfingZonesSettings } from "../../lib/engulfing-zones.ts";
+import type { SwingStructureSettings } from "../../lib/swing-structure.ts";
 import { cn } from "../../lib/utils.ts";
 import { api } from "../../services/api.ts";
 import { queryKeys } from "../../services/queries.ts";
@@ -195,10 +198,13 @@ function makeHistoryLoader(
 
 export interface ChartPanelProps {
   candles: Candle[];
+  isCandlesLoading?: boolean;
   selectedSymbol: string;
   timeframe: Timeframe;
   isDark: boolean;
   activeIndicators: IndicatorType[];
+  swingStructureSettings: SwingStructureSettings;
+  engulfingZonesSettings: EngulfingZonesSettings;
   drawingTool: DrawingTool;
   drawings: DrawingLine[];
   onAddDrawing: (d: DrawingLine) => void;
@@ -1071,10 +1077,13 @@ function ObjectTreeOverlay({
 
 export function ChartPanel({
   candles,
+  isCandlesLoading = false,
   selectedSymbol,
   timeframe,
   isDark,
   activeIndicators,
+  swingStructureSettings,
+  engulfingZonesSettings,
   drawingTool,
   drawings,
   onAddDrawing,
@@ -1389,7 +1398,16 @@ export function ChartPanel({
     [onAddDrawing, pipDigits, timeframe, selectedSymbol],
   );
 
-  useIndicators(chartRef, candleSeriesRef, chartData, activeIndicators, isDark);
+  useIndicators(
+    chartRef,
+    candleSeriesRef,
+    chartData,
+    activeIndicators,
+    isDark,
+    swingStructureSettings,
+    engulfingZonesSettings,
+    `${selectedSymbol}:${timeframe}`,
+  );
 
   // ── Replay trade event markers ─────────────────────────────
   useEffect(() => {
@@ -1940,6 +1958,18 @@ export function ChartPanel({
 
   return (
     <div className="relative w-full h-full">
+      {isCandlesLoading && (
+        <div
+          role="status"
+          aria-label="Loading chart data"
+          className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-background/20"
+        >
+          <div className="flex items-center gap-2 rounded-md border border-border bg-card/90 px-3 py-2 text-xs text-muted-foreground shadow-sm">
+            <Loader2 className="h-4 w-4 animate-spin text-primary" />
+            <span>Loading candles</span>
+          </div>
+        </div>
+      )}
       {/* OHLCV Legend Overlay */}
       <ChartLegendHeader
         selectedSymbol={selectedSymbol}

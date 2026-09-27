@@ -88,6 +88,8 @@ export function getCandleBucketTime(timestampMs: number, tf: Timeframe): number 
     "15s": 15 * SEC,
     "30s": 30 * SEC,
     "1m": 60 * SEC,
+    "2m": 2 * 60 * SEC,
+    "3m": 3 * 60 * SEC,
     "5m": 5 * 60 * SEC,
     "15m": 15 * 60 * SEC,
     "30m": 30 * 60 * SEC,

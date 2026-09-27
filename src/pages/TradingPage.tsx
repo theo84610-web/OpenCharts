@@ -14,9 +14,12 @@ import {
   getChartPreferencesFromStorage,
   updateChartPreferences,
   useChartPreferences,
+  type ChartPreferences,
 } from "../hooks/useChartPreferences.ts";
 import { useTradeSound } from "../hooks/useTradeSound";
 import type { IndicatorType } from "../lib/indicators.ts";
+import type { EngulfingZonesSettings } from "../lib/engulfing-zones.ts";
+import type { SwingStructureSettings } from "../lib/swing-structure.ts";
 import { posthog } from "../lib/posthog";
 import type { CreateJournalEntryInput, UpdateJournalEntryInput } from "../services/api/journal.ts";
 import { api } from "../services/api.ts";
@@ -321,6 +324,9 @@ export function TradingPage() {
     switch (timeframe) {
       case "1m":
         return 3_000;
+      case "2m":
+      case "3m":
+        return 5_000;
       case "5m":
         return 5_000;
       case "15m":
@@ -360,12 +366,77 @@ export function TradingPage() {
       window.clearTimeout(timer);
     };
   }, [selectedSymbol, timeframe, firstPaintCandleLimit, deepCandleLimit]);
-  const { data: candles = [] } = useCandles(selectedSymbol, timeframe, candleLimit, replayVersion);
+  const {
+    data: candles = [],
+    isFetching: isCandlesFetching,
+  } = useCandles(selectedSymbol, timeframe, candleLimit, replayVersion);
   // Replay: sliced 1m buffer + trade-event markers; null when not replaying.
   // While replayCandles is set, the live tick/candle feed is suppressed below
   // so real-time data can't paint over the playback.
   const { replayCandles, replayTradeEvents } = useReplayChartData(activeAccountId);
   const chartPrefs = useChartPreferences();
+  const swingStructureSettings = useMemo<SwingStructureSettings>(
+    () => ({
+      lookbackBars: chartPrefs.swingStructureLookbackBars,
+      lineColor: chartPrefs.swingStructureLineColor,
+      lineWidth: chartPrefs.swingStructureLineWidth,
+      showLabels: chartPrefs.swingStructureShowLabels,
+      showFormingLeg: chartPrefs.swingStructureShowFormingLeg,
+      highLabelColor: chartPrefs.swingStructureHighLabelColor,
+      lowLabelColor: chartPrefs.swingStructureLowLabelColor,
+    }),
+    [chartPrefs],
+  );
+  const engulfingZonesSettings = useMemo<EngulfingZonesSettings>(
+    () => ({
+      lookbackBars: chartPrefs.engulfingZonesLookbackBars,
+      maxPullbackBars: chartPrefs.engulfingZonesMaxPullbackBars,
+      maxActiveSetups: chartPrefs.engulfingZonesMaxActiveSetups,
+      bullishFillColor: chartPrefs.engulfingZonesBullishFillColor,
+      bullishBorderColor: chartPrefs.engulfingZonesBullishBorderColor,
+      bearishFillColor: chartPrefs.engulfingZonesBearishFillColor,
+      bearishBorderColor: chartPrefs.engulfingZonesBearishBorderColor,
+    }),
+    [chartPrefs],
+  );
+  const updateSwingStructureSettings = useCallback((patch: Partial<SwingStructureSettings>) => {
+    const preferences: Partial<ChartPreferences> = {};
+    if (patch.lookbackBars !== undefined) preferences.swingStructureLookbackBars = patch.lookbackBars;
+    if (patch.lineColor !== undefined) preferences.swingStructureLineColor = patch.lineColor;
+    if (patch.lineWidth !== undefined) preferences.swingStructureLineWidth = patch.lineWidth;
+    if (patch.showLabels !== undefined) preferences.swingStructureShowLabels = patch.showLabels;
+    if (patch.showFormingLeg !== undefined) {
+      preferences.swingStructureShowFormingLeg = patch.showFormingLeg;
+    }
+    if (patch.highLabelColor !== undefined) {
+      preferences.swingStructureHighLabelColor = patch.highLabelColor;
+    }
+    if (patch.lowLabelColor !== undefined) preferences.swingStructureLowLabelColor = patch.lowLabelColor;
+    updateChartPreferences(preferences);
+  }, []);
+  const updateEngulfingZonesSettings = useCallback((patch: Partial<EngulfingZonesSettings>) => {
+    const preferences: Partial<ChartPreferences> = {};
+    if (patch.lookbackBars !== undefined) preferences.engulfingZonesLookbackBars = patch.lookbackBars;
+    if (patch.maxPullbackBars !== undefined) {
+      preferences.engulfingZonesMaxPullbackBars = patch.maxPullbackBars;
+    }
+    if (patch.maxActiveSetups !== undefined) {
+      preferences.engulfingZonesMaxActiveSetups = patch.maxActiveSetups;
+    }
+    if (patch.bullishFillColor !== undefined) {
+      preferences.engulfingZonesBullishFillColor = patch.bullishFillColor;
+    }
+    if (patch.bullishBorderColor !== undefined) {
+      preferences.engulfingZonesBullishBorderColor = patch.bullishBorderColor;
+    }
+    if (patch.bearishFillColor !== undefined) {
+      preferences.engulfingZonesBearishFillColor = patch.bearishFillColor;
+    }
+    if (patch.bearishBorderColor !== undefined) {
+      preferences.engulfingZonesBearishBorderColor = patch.bearishBorderColor;
+    }
+    updateChartPreferences(preferences);
+  }, []);
   const cycleMagnetMode = useCallback(() => {
     const order: MagnetMode[] = ["none", "weak", "strong"];
     const next = order[(order.indexOf(chartPrefs.magnetMode) + 1) % order.length] ?? "none";
@@ -424,6 +495,10 @@ export function TradingPage() {
         timeframe={timeframe}
         onTimeframeChange={handleTimeframeChange}
         activeIndicators={activeIndicators}
+        swingStructureSettings={swingStructureSettings}
+        onSwingStructureSettingsChange={updateSwingStructureSettings}
+        engulfingZonesSettings={engulfingZonesSettings}
+        onEngulfingZonesSettingsChange={updateEngulfingZonesSettings}
         onToggleIndicator={(type) =>
           setActiveIndicators((prev) =>
             prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type],
@@ -439,8 +514,6 @@ export function TradingPage() {
         onRightPanel={setRightPanel}
         showRightPanel={showRightPanel}
         onToggleRightPanel={() => setShowRightPanel((v) => !v)}
-        tick={tick}
-        symbolInfo={symbolInfo}
         aiTraderEnabled={aiTraderEnabled?.enabled ?? false}
         isReplaying={isReplaying}
         replayAccountId={activeAccountId}
@@ -466,10 +539,13 @@ export function TradingPage() {
           <div className="flex-1 min-h-[200px] relative">
             <ChartPanel
               candles={replayCandles ?? candles}
+              isCandlesLoading={!replayCandles && isCandlesFetching}
               selectedSymbol={selectedSymbol}
               timeframe={replayCandles ? "1m" : timeframe}
               isDark={isDark}
               activeIndicators={activeIndicators}
+              swingStructureSettings={swingStructureSettings}
+              engulfingZonesSettings={engulfingZonesSettings}
               drawingTool={drawingTool}
               drawings={drawings}
               onAddDrawing={addDrawing}

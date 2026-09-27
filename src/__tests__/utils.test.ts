@@ -82,4 +82,9 @@ describe("getCandleBucketTime", () => {
     expect(getCandleBucketTime(31_000, "15s")).toBe(30);
     expect(getCandleBucketTime(61_000, "30s")).toBe(60);
   });
+
+  it("buckets 2-minute and 3-minute timeframes", () => {
+    expect(getCandleBucketTime(241_000, "2m")).toBe(240);
+    expect(getCandleBucketTime(361_000, "3m")).toBe(360);
+  });
 });

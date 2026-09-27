@@ -97,6 +97,8 @@ const TV_TECHNICAL_INTERVAL_MAP: Record<string, string> = {
   "15s": "15s",
   "30s": "30s",
   "1m": "1m",
+  "2m": "2m",
+  "3m": "3m",
   "5m": "5m",
   "15m": "15m",
   "30m": "30m",

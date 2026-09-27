@@ -18,6 +18,20 @@ export interface ChartPreferences {
   stayInDrawingMode: boolean;
   /** Plugin IDs that are currently active (persisted across page loads). */
   activePlugins: string[];
+  swingStructureLookbackBars: number;
+  swingStructureLineColor: string;
+  swingStructureLineWidth: number;
+  swingStructureShowLabels: boolean;
+  swingStructureShowFormingLeg: boolean;
+  swingStructureHighLabelColor: string;
+  swingStructureLowLabelColor: string;
+  engulfingZonesLookbackBars: number;
+  engulfingZonesMaxPullbackBars: number;
+  engulfingZonesMaxActiveSetups: number;
+  engulfingZonesBullishFillColor: string;
+  engulfingZonesBullishBorderColor: string;
+  engulfingZonesBearishFillColor: string;
+  engulfingZonesBearishBorderColor: string;
   // ── Appearance (Chart Settings dialog) ──
   /** Hex override for up candles; empty string = theme default. */
   candleUpColor: string;
@@ -67,6 +81,20 @@ const DEFAULT_CHART_PREFS: ChartPreferences = {
   magnetMode: "none",
   stayInDrawingMode: false,
   activePlugins: [],
+  swingStructureLookbackBars: 500,
+  swingStructureLineColor: "#1E64E6",
+  swingStructureLineWidth: 2,
+  swingStructureShowLabels: true,
+  swingStructureShowFormingLeg: true,
+  swingStructureHighLabelColor: "#ef4444",
+  swingStructureLowLabelColor: "#22c55e",
+  engulfingZonesLookbackBars: 1000,
+  engulfingZonesMaxPullbackBars: 15,
+  engulfingZonesMaxActiveSetups: 40,
+  engulfingZonesBullishFillColor: "#3b82f6",
+  engulfingZonesBullishBorderColor: "#1e64e6",
+  engulfingZonesBearishFillColor: "#fb923c",
+  engulfingZonesBearishBorderColor: "#ea580c",
   candleUpColor: "",
   candleDownColor: "",
   colorBackground: "",
@@ -102,6 +130,8 @@ const BOOL_PREF_KEYS = [
   "overlayPositionsOnChart",
   "drawingMagnet",
   "stayInDrawingMode",
+  "swingStructureShowLabels",
+  "swingStructureShowFormingLeg",
   "showWicks",
   "showCandleBorders",
   "showVolume",
@@ -132,6 +162,21 @@ const STRING_PREF_KEYS = [
   "colorTpLine",
   "colorSlLine",
   "activeChartTemplate",
+  "swingStructureLineColor",
+  "swingStructureHighLabelColor",
+  "swingStructureLowLabelColor",
+  "engulfingZonesBullishFillColor",
+  "engulfingZonesBullishBorderColor",
+  "engulfingZonesBearishFillColor",
+  "engulfingZonesBearishBorderColor",
+] as const;
+
+const NUMBER_PREF_KEYS = [
+  "swingStructureLookbackBars",
+  "swingStructureLineWidth",
+  "engulfingZonesLookbackBars",
+  "engulfingZonesMaxPullbackBars",
+  "engulfingZonesMaxActiveSetups",
 ] as const;
 
 /**
@@ -154,6 +199,20 @@ export const TEMPLATE_PREF_KEYS = [
   "challengeDailyLossLine",
   "challengeMaxDrawdownLine",
   "challengeProfitTargetLine",
+  "swingStructureLookbackBars",
+  "swingStructureLineColor",
+  "swingStructureLineWidth",
+  "swingStructureShowLabels",
+  "swingStructureShowFormingLeg",
+  "swingStructureHighLabelColor",
+  "swingStructureLowLabelColor",
+  "engulfingZonesLookbackBars",
+  "engulfingZonesMaxPullbackBars",
+  "engulfingZonesMaxActiveSetups",
+  "engulfingZonesBullishFillColor",
+  "engulfingZonesBullishBorderColor",
+  "engulfingZonesBearishFillColor",
+  "engulfingZonesBearishBorderColor",
   "candleUpColor",
   "candleDownColor",
   "colorBackground",
@@ -210,6 +269,19 @@ export function getChartPreferencesFromStorage(): ChartPreferences {
   }
   for (const key of STRING_PREF_KEYS) {
     result[key] = prefs[key] ?? DEFAULT_CHART_PREFS[key];
+  }
+  for (const key of NUMBER_PREF_KEYS) {
+    const parsed = Number(prefs[key]);
+    const value = Number.isFinite(parsed) ? parsed : DEFAULT_CHART_PREFS[key];
+    if (key === "swingStructureLookbackBars") {
+      result[key] = Math.max(1, Math.floor(value));
+    } else if (key === "swingStructureLineWidth") {
+      result[key] = Math.min(5, Math.max(1, value));
+    } else if (key === "engulfingZonesMaxActiveSetups") {
+      result[key] = Math.min(500, Math.max(1, Math.floor(value)));
+    } else {
+      result[key] = Math.min(10000, Math.max(1, Math.floor(value)));
+    }
   }
   // Migrate the old boolean magnet flag to the tri-state when unset.
   result.magnetMode =

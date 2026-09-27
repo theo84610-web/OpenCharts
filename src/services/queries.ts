@@ -254,22 +254,71 @@ export function useEconomicCalendar(currencies: string[]) {
   });
 }
 
+const CANDLE_MEMORY_CACHE_TTL_MS = 45_000;
+
+interface CandleMemoryCacheEntry {
+  payload: MarketDataCandlesPayload;
+  requestedLimit: number;
+  updatedAt: number;
+}
+
+const candleMemoryCache = new Map<string, CandleMemoryCacheEntry>();
+
+function readCandleMemoryCache(symbol: string, timeframe: string): CandleMemoryCacheEntry | undefined {
+  const key = `${symbol}\u0000${timeframe}`;
+  const entry = candleMemoryCache.get(key);
+  if (!entry) return undefined;
+  if (Date.now() - entry.updatedAt > CANDLE_MEMORY_CACHE_TTL_MS) {
+    candleMemoryCache.delete(key);
+    return undefined;
+  }
+  return entry;
+}
+
+function writeCandleMemoryCache(
+  symbol: string,
+  timeframe: string,
+  payload: MarketDataCandlesPayload,
+  requestedLimit: number,
+): void {
+  const key = `${symbol}\u0000${timeframe}`;
+  const existing = candleMemoryCache.get(key);
+  if (
+    existing &&
+    Date.now() - existing.updatedAt <= CANDLE_MEMORY_CACHE_TTL_MS &&
+    existing.requestedLimit > requestedLimit
+  ) {
+    return;
+  }
+  candleMemoryCache.set(key, { payload, requestedLimit, updatedAt: Date.now() });
+}
+
 export function useCandles(
   symbol: string,
   timeframe: string,
   limit?: number,
   replayVersion?: number,
 ) {
+  const cacheEnabled = replayVersion == null || replayVersion === 0;
+  const cacheEntry = cacheEnabled ? readCandleMemoryCache(symbol, timeframe) : undefined;
+  const requestedLimit = Math.min(Math.max(Math.floor(limit ?? 500), 1), 5000);
   return useQuery<MarketDataCandlesPayload, Error, Candle[]>({
     // Include replayVersion in the query key so each replay session forces a
     // completely fresh query — React Query won't reuse structural sharing or
     // stale cache from a previous replay / normal session.
     queryKey: [...queryKeys.market.candles(symbol, timeframe), limit ?? "auto", replayVersion ?? 0],
-    queryFn: () => api.getCandlesWithMeta(symbol, timeframe, limit),
+    queryFn: async () => {
+      const payload = await api.getCandlesWithMeta(symbol, timeframe, limit);
+      if (cacheEnabled) writeCandleMemoryCache(symbol, timeframe, payload, requestedLimit);
+      return payload;
+    },
+    initialData: cacheEntry?.payload,
+    initialDataUpdatedAt:
+      cacheEntry && cacheEntry.requestedLimit >= requestedLimit ? cacheEntry.updatedAt : 0,
     // Extract just the candles array for consumers — raw payload (with isPartial)
     // is still accessible via query.state.data inside refetchInterval below.
     select: (data) => data.candles,
-    staleTime: 30_000,
+    staleTime: CANDLE_MEMORY_CACHE_TTL_MS,
     // Keep previously-fetched candles visible while a new depth query (different
     // limit in the key) is in-flight. Without this, switching from firstPaint
     // → deep limit causes a momentary empty array, which lets a live WS candle
