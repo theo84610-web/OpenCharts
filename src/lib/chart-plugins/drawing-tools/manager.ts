@@ -157,6 +157,7 @@ export class DrawingToolsManager {
   private magnetMode: MagnetMode = "none";
   private stayInMode = false;
   private readonly normalCrosshairColor: string;
+  private rawCrosshairPosition: Pt | null = null;
   private crosshairPosition: Pt | null = null;
   private touchGesture: TouchGesture | null = null;
   private longPress: { timer: number; id: string; startPos: Pt } | null = null;
@@ -231,6 +232,10 @@ export class DrawingToolsManager {
 
   setMagnetMode(mode: MagnetMode): void {
     this.magnetMode = mode;
+    if (this.tool !== "none" && this.rawCrosshairPosition) {
+      this.renderCrosshairFromRaw(this.rawCrosshairPosition);
+      if (this.placing && this.crosshairPosition) this.placingMove(this.crosshairPosition, false);
+    }
   }
 
   setStyleDefaults(defaults: Record<string, Partial<DrawingLine>>): void {
@@ -370,7 +375,7 @@ export class DrawingToolsManager {
     this.clearMeasure();
     if (this.tool !== "none") {
       this.setCrosshairPosition(pos);
-      this.placementStart(pos, e);
+      this.placementStart(this.crosshairPosition ?? pos, e);
       return;
     }
     this.selectionStart(pos, e, false);
@@ -388,7 +393,7 @@ export class DrawingToolsManager {
     }
     if (this.tool !== "none") this.setCrosshairPosition(pos);
     if (this.placing) {
-      this.placingMove(pos, e.shiftKey);
+      this.placingMove(this.crosshairPosition ?? pos, e.shiftKey);
       return;
     }
     if (this.tool === "none") this.hoverHit(hitTest(this.resolveAll(), pos));
@@ -437,8 +442,8 @@ export class DrawingToolsManager {
     }
     const t = e.touches[0]!;
     if (this.tool !== "none") {
-      if (!this.crosshairPosition) this.centerCrosshairPosition();
-      const position = this.crosshairPosition;
+      if (!this.rawCrosshairPosition) this.centerCrosshairPosition();
+      const position = this.rawCrosshairPosition;
       if (!position) return;
       e.preventDefault();
       e.stopPropagation();
@@ -758,13 +763,29 @@ export class DrawingToolsManager {
     };
     const pt = this.toPoint(clamped);
     if (!pt) return;
-    this.crosshairPosition = clamped;
-    this.chart.setCrosshairPosition(pt.price, pt.time, this.series);
+    this.rawCrosshairPosition = clamped;
+    this.renderCrosshairFromRaw(clamped);
   }
 
   private clearCrosshairPosition(): void {
+    this.rawCrosshairPosition = null;
     this.crosshairPosition = null;
     this.chart.clearCrosshairPosition();
+  }
+
+  private renderCrosshairFromRaw(raw: Pt): void {
+    const rawPoint = this.toPoint(raw);
+    if (!rawPoint) return;
+    let displayed = raw;
+    if (this.magnetMode !== "none") {
+      const snapped = this.magnetSnap(rawPoint, raw.y);
+      const x = timeToX(this.ctx(), snapped.time);
+      const y = this.series.priceToCoordinate(snapped.price);
+      if (x !== null && y !== null) displayed = { x, y };
+    }
+    this.crosshairPosition = displayed;
+    const point = this.toPoint(displayed);
+    if (point) this.chart.setCrosshairPosition(point.price, point.time, this.series);
   }
 
   private centerCrosshairPosition(): void {
