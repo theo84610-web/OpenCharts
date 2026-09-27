@@ -80,25 +80,25 @@ export function useStaleData(): boolean {
 // ── Connection Indicator Component ──────────────────────
 const stateConfig = {
   connected: {
-    label: "Connected",
+    label: "Live",
     icon: Wifi,
     color: "text-success",
     dot: "bg-success",
   },
   connecting: {
-    label: "Connecting…",
+    label: "Connecting...",
     icon: Loader2,
     color: "text-warning",
     dot: "bg-warning",
   },
   reconnecting: {
-    label: "Reconnecting…",
+    label: "Reconnecting...",
     icon: Loader2,
     color: "text-warning",
     dot: "bg-warning",
   },
   disconnected: {
-    label: "Offline",
+    label: "Disconnected",
     icon: WifiOff,
     color: "text-destructive",
     dot: "bg-destructive",
@@ -116,7 +116,7 @@ export function ConnectionIndicator({ className }: { className?: string }) {
         className={cn("h-1.5 w-1.5 rounded-full", dot, state !== "connected" && "animate-pulse")}
       />
       <Icon className={cn("h-3 w-3", color, isSpinning && "animate-spin")} />
-      <span className={cn("hidden sm:inline", color)}>{label}</span>
+      <span className={cn("inline", color)}>{label}</span>
     </div>
   );
 }

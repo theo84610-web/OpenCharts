@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { useCandles } from "../services/queries.ts";
+import { mergeCandlesIntoCache, useCandles } from "../services/queries.ts";
 import { wsClient } from "../services/ws.ts";
 
 function createWrapper(client: QueryClient) {
@@ -22,6 +22,69 @@ afterEach(() => {
 });
 
 describe("candle timeframe cache", () => {
+  it("deduplicates reconnect candles and retains only the newest 5,000 bars", () => {
+    const client = createClient();
+    const originalCandles = Array.from({ length: 5_000 }, (_, index) => ({
+      time: index,
+      timestamp: index,
+      open: index,
+      high: index,
+      low: index,
+      close: index,
+      volume: 1,
+    }));
+    client.setQueryData(["candles", "XAU_USD", "15s", 5_000, 0], {
+      candles: originalCandles,
+      metadata: { historicalCoverageStart: 0, isPartial: false, backfillQueued: false },
+    });
+    client.setQueryData(["candles", "XAU_USD", "15s", 5_000, 7], {
+      candles: [originalCandles[0]!],
+      metadata: { historicalCoverageStart: 0, isPartial: false, backfillQueued: false },
+    });
+
+    mergeCandlesIntoCache(
+      client,
+      "XAU_USD",
+      "15s",
+      [
+        { ...originalCandles[4_999]!, close: 99 },
+        {
+          time: 5_000,
+          timestamp: 5_000,
+          open: 5_000,
+          high: 5_000,
+          low: 5_000,
+          close: 5_000,
+          volume: 1,
+        },
+      ],
+      5_000,
+      0,
+    );
+
+    const result = client.getQueryData<{ candles: typeof originalCandles }>([
+      "candles",
+      "XAU_USD",
+      "15s",
+      5_000,
+      0,
+    ])!;
+    expect(result.candles).toHaveLength(5_000);
+    expect(result.candles[0]?.time).toBe(1);
+    expect(result.candles.at(-2)).toMatchObject({ time: 4_999, close: 99 });
+    expect(result.candles.at(-1)?.time).toBe(5_000);
+    expect(
+      client.getQueryData<{ candles: typeof originalCandles }>([
+        "candles",
+        "XAU_USD",
+        "15s",
+        5_000,
+        7,
+      ])?.candles,
+    ).toHaveLength(1);
+    client.clear();
+  });
+
   it("reuses recent candles across query clients for the same symbol and timeframe", async () => {
     vi.stubEnv("OANDA_API_KEY", "practice-key");
     const fetchMock = vi.fn().mockResolvedValue(

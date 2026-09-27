@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useIsFeedConnected } from "../components/ConnectionIndicator.tsx";
+import { ConnectionIndicator, useIsFeedConnected } from "../components/ConnectionIndicator.tsx";
 import { MobileAccountBar, MobileTradingPanel } from "../components/MobileTradingPanel.tsx";
 import {
   OrderConfirmDialog,
@@ -23,8 +23,10 @@ import type { SwingStructureSettings } from "../lib/swing-structure.ts";
 import { posthog } from "../lib/posthog";
 import type { CreateJournalEntryInput, UpdateJournalEntryInput } from "../services/api/journal.ts";
 import { api } from "../services/api.ts";
+import { wsClient } from "../services/ws.ts";
 import {
   useAiTraderEnabled,
+  mergeCandlesIntoCache,
   useCandles,
   useCreateJournalEntry,
   useDeleteJournalEntry,
@@ -370,6 +372,22 @@ export function TradingPage() {
     data: candles = [],
     isFetching: isCandlesFetching,
   } = useCandles(selectedSymbol, timeframe, candleLimit, replayVersion);
+  useEffect(
+    () =>
+      wsClient.onReconnect(async () => {
+        if (isReplaying) return;
+        const recentCandles = await api.getCandles(selectedSymbol, timeframe, 100);
+        mergeCandlesIntoCache(
+          queryClient,
+          selectedSymbol,
+          timeframe,
+          recentCandles,
+          candleLimit,
+          replayVersion,
+        );
+      }),
+    [candleLimit, isReplaying, queryClient, replayVersion, selectedSymbol, timeframe],
+  );
   // Replay: sliced 1m buffer + trade-event markers; null when not replaying.
   // While replayCandles is set, the live tick/candle feed is suppressed below
   // so real-time data can't paint over the playback.
@@ -528,6 +546,12 @@ export function TradingPage() {
           updateChartPreferences({ stayInDrawingMode: !chartPrefs.stayInDrawingMode })
         }
       />
+
+      {!isReplaying && (
+        <div className="flex h-6 shrink-0 items-center border-b border-border bg-background px-3">
+          <ConnectionIndicator />
+        </div>
+      )}
 
       <MarketClosedBanner symbolInfo={symbolInfo} />
 

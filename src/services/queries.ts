@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient, type UseQueryOptions } from "@ta
 import { api } from "./api";
 import type { AllPayoutsResponse } from "./api/accounts";
 import type { JournalEntriesResponse } from "./api/journal";
-import type { MarketDataCandlesPayload } from "./api/market-data";
+import type { MarketDataCandle, MarketDataCandlesPayload } from "./api/market-data";
 import type { PnlCalendarResponse } from "@propsim/types";
 import type {
   Account,
@@ -255,6 +255,7 @@ export function useEconomicCalendar(currencies: string[]) {
 }
 
 const CANDLE_MEMORY_CACHE_TTL_MS = 45_000;
+const MAX_CANDLE_HISTORY = 5_000;
 
 interface CandleMemoryCacheEntry {
   payload: MarketDataCandlesPayload;
@@ -290,7 +291,58 @@ function writeCandleMemoryCache(
   ) {
     return;
   }
-  candleMemoryCache.set(key, { payload, requestedLimit, updatedAt: Date.now() });
+  candleMemoryCache.set(key, {
+    payload: { ...payload, candles: payload.candles.slice(-MAX_CANDLE_HISTORY) },
+    requestedLimit: Math.min(requestedLimit, MAX_CANDLE_HISTORY),
+    updatedAt: Date.now(),
+  });
+}
+
+function mergeCandleHistory(
+  existing: MarketDataCandle[],
+  updates: MarketDataCandle[],
+): MarketDataCandle[] {
+  const byTime = new Map<number, MarketDataCandle>();
+  for (const candle of existing) byTime.set(candle.time, candle);
+  for (const candle of updates) byTime.set(candle.time, candle);
+  return [...byTime.values()]
+    .sort((left, right) => left.time - right.time)
+    .slice(-MAX_CANDLE_HISTORY);
+}
+
+export function mergeCandlesIntoCache(
+  queryClient: ReturnType<typeof useQueryClient>,
+  symbol: string,
+  timeframe: string,
+  updates: MarketDataCandle[],
+  limit?: number,
+  replayVersion?: number,
+): void {
+  const queryKey = [
+    ...queryKeys.market.candles(symbol, timeframe),
+    limit ?? "auto",
+    replayVersion ?? 0,
+  ];
+  queryClient.setQueryData<MarketDataCandlesPayload>(queryKey, (payload) => {
+    if (!payload) return payload;
+    const candles = mergeCandleHistory(payload.candles, updates);
+    return {
+      ...payload,
+      candles,
+      metadata: { ...payload.metadata, historicalCoverageStart: candles[0]?.time ?? null },
+    };
+  });
+
+  const memoryEntry = candleMemoryCache.get(`${symbol}\u0000${timeframe}`);
+  if (memoryEntry) {
+    const candles = mergeCandleHistory(memoryEntry.payload.candles, updates);
+    memoryEntry.payload = {
+      ...memoryEntry.payload,
+      candles,
+      metadata: { ...memoryEntry.payload.metadata, historicalCoverageStart: candles[0]?.time ?? null },
+    };
+    memoryEntry.updatedAt = Date.now();
+  }
 }
 
 export function useCandles(
@@ -310,14 +362,19 @@ export function useCandles(
     queryFn: async () => {
       const payload = await api.getCandlesWithMeta(symbol, timeframe, limit);
       if (cacheEnabled) writeCandleMemoryCache(symbol, timeframe, payload, requestedLimit);
-      return payload;
+      return {
+        ...payload,
+        // Indicators operate sequentially over the retained 5,000-bar window;
+        // older bars are intentionally outside the chart's calculation horizon.
+        candles: payload.candles.slice(-MAX_CANDLE_HISTORY),
+      };
     },
     initialData: cacheEntry?.payload,
     initialDataUpdatedAt:
       cacheEntry && cacheEntry.requestedLimit >= requestedLimit ? cacheEntry.updatedAt : 0,
     // Extract just the candles array for consumers — raw payload (with isPartial)
     // is still accessible via query.state.data inside refetchInterval below.
-    select: (data) => data.candles,
+    select: (data) => data.candles.slice(-MAX_CANDLE_HISTORY),
     staleTime: CANDLE_MEMORY_CACHE_TTL_MS,
     // Keep previously-fetched candles visible while a new depth query (different
     // limit in the key) is in-flight. Without this, switching from firstPaint

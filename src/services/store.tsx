@@ -469,17 +469,20 @@ export const useTradingStore = create<TradingState>((set, get) => ({
     }));
   },
 
-  setSelectedSymbol: (symbol) =>
+  setSelectedSymbol: (symbol) => {
+    wsClient.setSymbolInterest([symbol]);
     set((state) =>
       state.selectedSymbol === symbol
         ? { selectedSymbol: symbol }
         : { selectedSymbol: symbol, liveCandleUpdates: {} },
-    ),
+    );
+  },
   setPositions: (positions) => set({ positions }),
   setOrders: (orders) => set({ orders }),
   setReplaySessionDate: (date) => set({ replaySessionDate: date }),
 
   onReplayStateChanged: (action, opts) => {
+    wsClient.setReplayMode(action !== "stopped");
     set((state) => nextReplayState(state, action, opts));
   },
 }));
